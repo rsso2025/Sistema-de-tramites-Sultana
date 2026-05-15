@@ -1,0 +1,43 @@
+{
+  "Certificación": {
+    "plantilla": "plantilla_certificacion_contrato.docx",
+    "nombre_archivo": "certificacion",
+    "campos_editables": [
+      ["Fecha inicio", "fecha_inicio", ""],
+      ["Fecha fin", "fecha_fin", ""],
+      ["Fecha firma", "fecha_firma", ""],
+      ["Duración", "duracion", "1 año"],
+      ["Fecha emisión", "fecha_emision", ""],
+      ["Ciudad", "ciudad", "Sultana"]
+    ]
+  },
+  "Formato de Accidente (Interno)": {
+    "plantilla": "plantilla_formato_accidente_no_reportar.docx",
+    "nombre_archivo": "formato_accidente_interno",
+    "campos_editables": [
+      ["Ciudad del reporte", "ciudad_reporte", "Santiago de Cali"],
+      ["Fecha del reporte", "fecha_reporte", ""],
+      ["Fecha del incidente", "fecha_incidente", ""],
+      ["Hora del incidente", "hora_incidente", ""],
+      ["Dirección del incidente", "direccion_incidente", ""],
+      ["Ruta", "ruta", ""],
+      ["Motorista", "motorista", ""],
+      ["Nombre de quien reporta", "nombre_reporta", ""],
+      ["C.C. de quien reporta", "cc_reporta", ""],
+      ["Cargo", "cargo_reporta", "CONDUCTOR"],
+      ["Tipo de novedad", "tipo_novedad", "Accidente de Tránsito"],
+      ["Lugar de la novedad", "lugar_novedad", "Vía"],
+      ["Otro lugar", "otro_lugar", ""],
+      ["Descripción de la novedad", "descripcion_novedad", ""],
+      ["Medidas / recursos", "medidas_prevencion", ""],
+      ["Acción correctiva 1", "accion_correctiva_1", ""],
+      ["Responsable 1", "responsable_1", ""],
+      ["Fecha cierre 1", "fecha_cierre_1", ""],
+      ["Acción correctiva 2", "accion_correctiva_2", ""],
+      ["Responsable 2", "responsable_2", ""],
+      ["Fecha cierre 2", "fecha_cierre_2", ""],
+      ["Nombre firma", "firma_nombre", ""],
+      ["Documento firma", "firma_documento", ""]
+    ]
+  }
+}
