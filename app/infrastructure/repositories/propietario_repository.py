@@ -5,7 +5,6 @@ Encapsula las operaciones de base de datos para la entidad Propietario.
 Utiliza las funciones de conexión definidas en app.database.database.
 """
 
-import sqlite3
 from typing import List
 
 from app.database.database import get_connection

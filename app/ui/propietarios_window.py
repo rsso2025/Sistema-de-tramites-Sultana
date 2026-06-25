@@ -142,3 +142,5 @@ class PropietariosWindow:
         self.entry_nombre.delete(0, "end")
         self.entry_telefono.delete(0, "end")
         self.entry_direccion.delete(0, "end")
+
+        

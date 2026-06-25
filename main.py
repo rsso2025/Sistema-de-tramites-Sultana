@@ -14,7 +14,6 @@ def main():
 
     # Crear ventana principal
     app = ctk.CTk()
-    app.title("Sistema de Trámites Sultana")
     app.geometry("500x450")
     app.resizable(False, False)
 

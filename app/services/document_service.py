@@ -18,18 +18,31 @@ from app.infrastructure.repositories.vehiculo_repository import VehiculoReposito
 
 
 def _reemplazar_texto_en_parrafo(parrafo, datos: Dict[str, str]) -> None:
-    texto = parrafo.text
-    nuevo_texto = texto
+    """
+    Reemplaza placeholders sin destruir formato,
+    tabulaciones ni estilos de Word.
+    """
+
+    texto_original = parrafo.text
+    texto_reemplazado = texto_original
+    hubo_cambios = False
+
     for clave, valor in datos.items():
         placeholder1 = f"{{{{{clave}}}}}"
         placeholder2 = f"{{{clave}}}"
-        nuevo_texto = nuevo_texto.replace(placeholder1, valor)
-        nuevo_texto = nuevo_texto.replace(placeholder2, valor)
+        valor_str = str(valor)
 
-    if nuevo_texto != texto:
-        for run in parrafo.runs[::-1]:
-            run._element.getparent().remove(run._element)
-        parrafo.add_run(nuevo_texto)
+        if placeholder1 in texto_reemplazado:
+            texto_reemplazado = texto_reemplazado.replace(placeholder1, valor_str)
+            hubo_cambios = True
+
+        if placeholder2 in texto_reemplazado:
+            texto_reemplazado = texto_reemplazado.replace(placeholder2, valor_str)
+            hubo_cambios = True
+
+    if hubo_cambios and texto_reemplazado != texto_original:
+        parrafo.clear()
+        parrafo.add_run(texto_reemplazado)
 
 
 def _reemplazar_texto_en_tabla(tabla, datos: Dict[str, str]) -> None:
@@ -84,7 +97,9 @@ class DocumentoService:
 
     def cargar_datos_vehiculo(self, vehiculo_id: int) -> Optional[VehiculoDTO]:
         """Obtiene los datos completos de un vehículo por su ID."""
-        return self.vehiculo_repo.obtener_por_id(vehiculo_id)
+        from app.services.vehiculo_mysql_service import VehiculoMySQLService
+
+        return VehiculoMySQLService().buscar_por_id(vehiculo_id)
 
     def preparar_datos_plantilla(
         self, vehiculo: VehiculoDTO, datos_editables: Dict[str, str], tipo: str
@@ -94,6 +109,9 @@ class DocumentoService:
         y prepara el diccionario final para la plantilla.
         """
         datos = {
+            # ==========================
+            # DATOS AUTOMÁTICOS DEL VEHÍCULO
+            # ==========================
             "nombre_propietario": vehiculo.nombre_propietario or "",
             "documento": vehiculo.documento_propietario or "",
             "placa": vehiculo.placa or "",
@@ -101,7 +119,12 @@ class DocumentoService:
             "modelo": vehiculo.modelo or "",
             "clase": vehiculo.clase or "",
             "fecha_afiliacion": vehiculo.fecha_afiliacion or "",
-            "numero_motor": vehiculo.numero_interno or "N/A",
+
+            # Número interno del vehículo
+            "numero_interno": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
+
+            # Temporalmente usa el mismo valor hasta mapear el número de motor real desde MySQL
+            "numero_motor": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
         }
 
         # Agregar campos editables; si hay fecha vacía, usar fecha actual

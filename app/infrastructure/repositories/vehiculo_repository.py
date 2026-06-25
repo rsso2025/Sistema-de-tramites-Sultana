@@ -4,7 +4,6 @@ Repositorio de Vehículos.
 Encapsula las operaciones de base de datos para la entidad Vehículo.
 """
 
-import sqlite3
 from typing import List
 
 from app.database.database import get_connection

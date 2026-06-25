@@ -5,12 +5,17 @@ Utiliza DocumentoService para la lógica de negocio y generación.
 """
 
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import messagebox, filedialog
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+import unicodedata
+import traceback
+
+from docx2pdf import convert
 
 from app.services.document_service import DocumentoService
-from app.services.vehiculo_service import VehiculoService
+from app.services.vehiculo_mysql_service import VehiculoMySQLService
 
 
 class DocumentosWindow:
@@ -22,11 +27,15 @@ class DocumentosWindow:
 
         # Servicios
         self.documento_service = DocumentoService()
-        self.vehiculo_service = VehiculoService()
+        self.vehiculo_service = VehiculoMySQLService()
 
         self.vehiculos_map = {}
+        self.vehiculos_cache = []
+        self.vehiculos_resultados_actuales = []
         self.vehiculo_data = None
         self.entries_edit = {}
+        self.vehiculo_seleccionado = None
+        self._busqueda_after_id = None
 
         self.setup_ui()
         self.cargar_tipos_documento()
@@ -56,20 +65,49 @@ class DocumentosWindow:
         )
         self.combo_tipo_documento.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
-        ctk.CTkLabel(frame_seleccion, text="Vehículo:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
-        self.combo_vehiculos = ctk.CTkComboBox(
+        ctk.CTkLabel(frame_seleccion, text="Buscar vehículo:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.entry_busqueda_vehiculo = ctk.CTkEntry(
             frame_seleccion,
             width=450,
-            values=["Cargando vehículos..."],
+            placeholder_text="Escriba placa, interno o propietario...",
         )
-        self.combo_vehiculos.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.entry_busqueda_vehiculo.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.entry_busqueda_vehiculo.bind("<KeyRelease>", self.on_busqueda_vehiculo_change)
 
         btn_cargar = ctk.CTkButton(
             frame_seleccion,
             text="Cargar datos",
             command=self.cargar_datos_vehiculo,
         )
-        btn_cargar.grid(row=1, column=2, padx=10, pady=10)
+        btn_cargar.grid(row=1, column=2, padx=10, pady=10, sticky="w")
+
+        ctk.CTkLabel(frame_seleccion, text="Resultados:").grid(row=2, column=0, padx=10, pady=(6, 10), sticky="nw")
+
+        frame_resultados = ctk.CTkFrame(frame_seleccion)
+        frame_resultados.grid(row=2, column=1, columnspan=2, padx=10, pady=(6, 10), sticky="ew")
+        frame_resultados.grid_columnconfigure(0, weight=1)
+
+        self.listbox_vehiculos = tk.Listbox(
+            frame_resultados,
+            height=8,
+            activestyle="none",
+            exportselection=False,
+        )
+        self.listbox_vehiculos.grid(row=0, column=0, sticky="nsew")
+        self.listbox_vehiculos.bind("<Double-Button-1>", self.on_vehiculo_doble_click)
+        self.listbox_vehiculos.bind("<Return>", self.on_vehiculo_enter)
+        self.listbox_vehiculos.bind("<<ListboxSelect>>", self.on_vehiculo_select)
+
+        scrollbar_vehiculos = tk.Scrollbar(frame_resultados, orient="vertical", command=self.listbox_vehiculos.yview)
+        scrollbar_vehiculos.grid(row=0, column=1, sticky="ns")
+        self.listbox_vehiculos.configure(yscrollcommand=scrollbar_vehiculos.set)
+
+        self.label_resultados = ctk.CTkLabel(
+            frame_seleccion,
+            text="Cargue los vehículos y comience a escribir para filtrar.",
+            text_color="gray30",
+        )
+        self.label_resultados.grid(row=3, column=1, columnspan=2, padx=10, pady=(0, 10), sticky="w")
 
         # Bloque datos automáticos (siempre igual)
         frame_auto = ctk.CTkFrame(self.scroll_frame)
@@ -117,6 +155,22 @@ class DocumentosWindow:
         # Bloque acciones
         frame_acciones = ctk.CTkFrame(self.scroll_frame)
         frame_acciones.pack(fill="x", padx=10, pady=15)
+
+        frame_formato = ctk.CTkFrame(frame_acciones)
+        frame_formato.pack(pady=(15, 5))
+
+        ctk.CTkLabel(
+            frame_formato,
+            text="Formato de salida:",
+        ).pack(side="left", padx=(12, 8), pady=12)
+
+        self.combo_formato_salida = ctk.CTkComboBox(
+            frame_formato,
+            values=["Word (.docx)", "PDF (.pdf)"],
+            width=160,
+        )
+        self.combo_formato_salida.set("Word (.docx)")
+        self.combo_formato_salida.pack(side="left", padx=(0, 12), pady=12)
 
         btn_generar = ctk.CTkButton(
             frame_acciones,
@@ -175,47 +229,131 @@ class DocumentosWindow:
             self.entries_edit[key] = entry
 
     def cargar_vehiculos(self):
-        """Carga los vehículos en el combo desde el servicio de vehículos."""
+        """Carga una sola vez los vehículos y prepara el filtro en memoria."""
         try:
-            conn = __import__("app.database.database", fromlist=["get_connection"]).get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT v.id, v.placa, p.nombre, p.documento
-                FROM vehiculos v
-                INNER JOIN propietarios p ON v.propietario_id = p.id
-                ORDER BY v.placa
-                """
-            )
-            resultados = cursor.fetchall()
-            conn.close()
+            resultados = self.vehiculo_service.listar_vehiculos()
             self.vehiculos_map.clear()
-            if resultados:
-                valores = []
-                for fila in resultados:
-                    vehiculo_id, placa, nombre, documento = fila
-                    etiqueta = f"{placa} - {nombre} ({documento})"
-                    valores.append(etiqueta)
-                    self.vehiculos_map[etiqueta] = vehiculo_id
-                self.combo_vehiculos.configure(values=valores)
-                self.combo_vehiculos.set(valores[0])
+            self.vehiculos_cache = []
+
+            for fila in resultados:
+                vehiculo_id = fila.get("vehiculo_id")
+                placa = (fila.get("placa") or "").strip()
+                interno = str(fila.get("interno") or "").strip()
+                nombre_propietario = (fila.get("nombre_propietario") or "").strip()
+                documento_propietario = str(fila.get("documento_propietario") or "").strip()
+
+                parte_interno = f"Interno {interno}" if interno else "Interno N/A"
+                etiqueta = f"{placa} - {parte_interno} - {nombre_propietario}".strip()
+                if documento_propietario:
+                    etiqueta = f"{etiqueta} ({documento_propietario})"
+
+                item = {
+                    "vehiculo_id": vehiculo_id,
+                    "placa": placa,
+                    "interno": interno,
+                    "nombre_propietario": nombre_propietario,
+                    "documento_propietario": documento_propietario,
+                    "etiqueta": etiqueta,
+                    "busqueda": self._normalizar_texto(
+                        f"{placa} {interno} {nombre_propietario} {documento_propietario}"
+                    ),
+                }
+
+                self.vehiculos_cache.append(item)
+                self.vehiculos_map[etiqueta] = vehiculo_id
+
+            self._actualizar_resultados_vehiculo("")
+
+            if self.vehiculos_cache:
+                self.label_resultados.configure(
+                    text=f"{len(self.vehiculos_cache)} vehículos cargados. Escriba para filtrar por placa, interno o propietario.",
+                    text_color="gray30",
+                )
             else:
-                self.combo_vehiculos.configure(values=["No hay vehículos"])
-                self.combo_vehiculos.set("No hay vehículos")
+                self.label_resultados.configure(
+                    text="No hay vehículos disponibles.",
+                    text_color="gray30",
+                )
         except Exception as e:
+            traceback.print_exc()
             self.label_estado.configure(
                 text=f"Error cargando vehículos: {str(e)}",
                 text_color="red",
             )
 
+    def on_busqueda_vehiculo_change(self, _event=None):
+        """Dispara un filtrado en memoria mientras el usuario escribe."""
+        if self._busqueda_after_id is not None:
+            self.window.after_cancel(self._busqueda_after_id)
+        self._busqueda_after_id = self.window.after(120, self._aplicar_filtro_vehiculos)
+
+    def _aplicar_filtro_vehiculos(self):
+        self._busqueda_after_id = None
+        texto_busqueda = self.entry_busqueda_vehiculo.get().strip()
+        self._actualizar_resultados_vehiculo(texto_busqueda)
+
+    def _actualizar_resultados_vehiculo(self, texto_busqueda: str):
+        """Rellena la lista visible con los vehículos filtrados en memoria."""
+        consulta = self._normalizar_texto(texto_busqueda)
+        if consulta:
+            resultados = [item for item in self.vehiculos_cache if consulta in item["busqueda"]]
+        else:
+            resultados = self.vehiculos_cache
+
+        self.listbox_vehiculos.delete(0, tk.END)
+        for item in resultados:
+            self.listbox_vehiculos.insert(tk.END, item["etiqueta"])
+
+        self.vehiculos_resultados_actuales = resultados
+
+        if resultados:
+            self.listbox_vehiculos.selection_clear(0, tk.END)
+            self.listbox_vehiculos.selection_set(0)
+            self.listbox_vehiculos.activate(0)
+            self.vehiculo_seleccionado = resultados[0]
+            self.label_resultados.configure(
+                text=f"Mostrando {len(resultados)} resultado(s). Use clic o Enter para cargar.",
+                text_color="gray30",
+            )
+        else:
+            self.vehiculo_seleccionado = None
+            self.label_resultados.configure(
+                text="Sin coincidencias para la búsqueda actual.",
+                text_color="gray30",
+            )
+
+    def on_vehiculo_select(self, _event=None):
+        """Sincroniza la selección visible con el vehículo activo."""
+        seleccion = self.listbox_vehiculos.curselection()
+        if not seleccion:
+            self.vehiculo_seleccionado = None
+            return
+
+        indice = seleccion[0]
+        if 0 <= indice < len(self.vehiculos_resultados_actuales):
+            self.vehiculo_seleccionado = self.vehiculos_resultados_actuales[indice]
+
+    def on_vehiculo_doble_click(self, _event=None):
+        self.cargar_datos_vehiculo()
+
+    def on_vehiculo_enter(self, _event=None):
+        self.cargar_datos_vehiculo()
+
+    def _normalizar_texto(self, texto: str) -> str:
+        """Normaliza texto para búsquedas insensibles a mayúsculas y acentos."""
+        texto = texto or ""
+        texto = unicodedata.normalize("NFKD", texto)
+        texto = "".join(caracter for caracter in texto if not unicodedata.combining(caracter))
+        return texto.lower().strip()
+
     def cargar_datos_vehiculo(self):
         """Carga los datos automáticos del vehículo seleccionado."""
-        seleccion = self.combo_vehiculos.get()
-        if seleccion not in self.vehiculos_map:
+        seleccion = self.vehiculo_seleccionado
+        if not seleccion:
             messagebox.showwarning("Atención", "Seleccione un vehículo válido.")
             return
 
-        vehiculo_id = self.vehiculos_map[seleccion]
+        vehiculo_id = seleccion["vehiculo_id"]
         try:
             vehiculo = self.documento_service.cargar_datos_vehiculo(vehiculo_id)
             if not vehiculo:
@@ -268,12 +406,19 @@ class DocumentosWindow:
         # Nombre sugerido para el archivo
         config = self.documento_service.obtener_configuracion_documento(tipo)
         prefijo = config["nombre_archivo"]
-        nombre_archivo = f"{prefijo}_{self.vehiculo_data.placa}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        formato_salida = self.combo_formato_salida.get().strip()
+        es_pdf = formato_salida == "PDF (.pdf)"
+
+        extension = ".pdf" if es_pdf else ".docx"
+        nombre_archivo = f"{prefijo}_{self.vehiculo_data.placa}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{extension}"
+
+        titulo_dialogo = "Guardar PDF como" if es_pdf else "Guardar documento como"
+        tipos_archivo = [("PDF", "*.pdf")] if es_pdf else [("Documentos Word", "*.docx")]
 
         ruta_guardado = filedialog.asksaveasfilename(
-            title="Guardar documento como",
-            defaultextension=".docx",
-            filetypes=[("Documentos Word", "*.docx")],
+            title=titulo_dialogo,
+            defaultextension=extension,
+            filetypes=tipos_archivo,
             initialfile=nombre_archivo,
         )
         if not ruta_guardado:
@@ -283,22 +428,64 @@ class DocumentosWindow:
             )
             return
 
+        if not es_pdf:
+            exito, mensaje = self.documento_service.generar_documento(
+                tipo=tipo,
+                vehiculo=self.vehiculo_data,
+                datos_editables=datos_editables,
+                ruta_salida=ruta_guardado,
+            )
+
+            if exito:
+                self.label_estado.configure(
+                    text=f"Documento generado correctamente:\n{mensaje}",
+                    text_color="green",
+                )
+                messagebox.showinfo("Éxito", f"Documento generado correctamente:\n{mensaje}")
+            else:
+                self.label_estado.configure(
+                    text=f"Error: {mensaje}",
+                    text_color="red",
+                )
+                messagebox.showerror("Error", f"No se pudo generar el documento:\n{mensaje}")
+            return
+
+        ruta_pdf = Path(ruta_guardado)
+        ruta_docx_temporal = ruta_pdf.with_suffix(".docx")
+
         exito, mensaje = self.documento_service.generar_documento(
             tipo=tipo,
             vehiculo=self.vehiculo_data,
             datos_editables=datos_editables,
-            ruta_salida=ruta_guardado,
+            ruta_salida=str(ruta_docx_temporal),
         )
 
-        if exito:
-            self.label_estado.configure(
-                text=f"Documento generado correctamente:\n{mensaje}",
-                text_color="green",
-            )
-            messagebox.showinfo("Éxito", f"Documento generado correctamente:\n{mensaje}")
-        else:
+        if not exito:
             self.label_estado.configure(
                 text=f"Error: {mensaje}",
                 text_color="red",
             )
-            messagebox.showerror("Error", f"No se pudo generar el documento:\n{mensaje}")
+            messagebox.showerror("Error", f"No se pudo generar el documento Word intermedio:\n{mensaje}")
+            return
+
+        try:
+            convert(str(ruta_docx_temporal), str(ruta_pdf.parent))
+            ruta_pdf_final = ruta_pdf.with_suffix(".pdf")
+
+            if not ruta_pdf_final.exists():
+                raise FileNotFoundError(f"No se encontró el PDF generado: {ruta_pdf_final}")
+
+            ruta_docx_temporal.unlink(missing_ok=True)
+
+            self.label_estado.configure(
+                text=f"PDF generado correctamente:\n{ruta_pdf_final}",
+                text_color="green",
+            )
+            messagebox.showinfo("Éxito", f"PDF generado correctamente:\n{ruta_pdf_final}")
+        except Exception as e:
+            traceback.print_exc()
+            self.label_estado.configure(
+                text=f"Error convirtiendo a PDF: {str(e)}",
+                text_color="red",
+            )
+            messagebox.showerror("Error", f"No se pudo convertir el documento a PDF:\n{str(e)}")

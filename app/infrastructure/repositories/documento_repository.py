@@ -4,7 +4,6 @@ Repositorio de Documentos Generados.
 Encapsula el acceso a la tabla documentos_generados.
 """
 
-import sqlite3
 from typing import List
 
 from app.database.database import get_connection

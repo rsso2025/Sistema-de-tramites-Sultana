@@ -9,14 +9,3 @@ Thumbs.db
 *.log
 *.sqlite3
 *.db
-# Auditoria
-estructura_*.txt
-dependencias.txt
-
-# Documentos de prueba
-# Documentos de prueba
-test_output*.docx
-test_generate*.docx
-
-.env
-.env.*
