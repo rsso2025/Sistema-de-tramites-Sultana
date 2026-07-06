@@ -4,6 +4,11 @@ from app.infrastructure.mysql.mysql_connection import get_connection
 class VehiculoMySQLRepository:
 
     def buscar_por_placa(self, placa):
+        print("\n==============================")
+        print("ENTRÓ A buscar_por_placa()")
+        print("placa:", placa)
+        print("==============================")
+
         conexion = get_connection()
 
         try:
@@ -20,6 +25,10 @@ class VehiculoMySQLRepository:
                         v.num_serie,
                         v.vin_serie,
                         v.f_matricula,
+                        v.capacidad,
+                        '' AS tipo,
+                        cb.nombre AS combustible,
+                        '' AS modalidad,
 
                         m.nombre AS marca,
                         cv.nombre AS clase,
@@ -33,7 +42,13 @@ class VehiculoMySQLRepository:
                         p.direccion,
                         p.telefono,
                         p.celular,
-                        p.email
+                        p.email,
+
+                        mt.nombre AS motorista_nombre,
+                        mt.num_documento AS motorista_documento,
+                        mt.celular AS motorista_celular,
+                        mt.direccion AS motorista_direccion,
+                        mt.email AS motorista_email
 
                     FROM vehiculo v
 
@@ -58,10 +73,21 @@ class VehiculoMySQLRepository:
                     LEFT JOIN servicio s
                         ON v.servicio_id = s.servicio_id
 
+                    LEFT JOIN combustible cb
+                        ON v.combustible_id = cb.combustible_id
+
+                    LEFT JOIN motorista mt
+                        ON v.motorista_id = mt.motorista_id
+
                     WHERE v.placa = %s
                 """, (placa,))
 
                 resultado = cursor.fetchone()
+                print("\nResultado obtenido:")
+                print(resultado)
+
+                if resultado:
+                    print("Cantidad de columnas:", len(resultado))
 
                 if not resultado:
                     return None
@@ -76,18 +102,27 @@ class VehiculoMySQLRepository:
                     "serie": resultado[6],
                     "vin": resultado[7],
                     "fecha_matricula": resultado[8],
-                    "marca": resultado[9],
-                    "clase": resultado[10],
-                    "ruta": resultado[11],
-                    "color": resultado[12],
-                    "carroceria": resultado[13],
-                    "servicio": resultado[14],
-                    "propietario": resultado[15],
-                    "documento": resultado[16],
-                    "direccion": resultado[17],
-                    "telefono": resultado[18],
-                    "celular": resultado[19],
-                    "email": resultado[20]
+                    "capacidad": resultado[9],
+                    "tipo": resultado[10],
+                    "combustible": resultado[11],
+                    "modalidad": resultado[12],
+                    "marca": resultado[13],
+                    "clase": resultado[14],
+                    "ruta": resultado[15],
+                    "color": resultado[16],
+                    "carroceria": resultado[17],
+                    "servicio": resultado[18],
+                    "propietario": resultado[19],
+                    "documento": resultado[20],
+                    "direccion": resultado[21],
+                    "telefono": resultado[22],
+                    "celular": resultado[23],
+                    "email": resultado[24],
+                    "nombre_conductor": resultado[25],
+                    "documento_conductor": resultado[26],
+                    "celular_conductor": resultado[27],
+                    "direccion_conductor": resultado[28],
+                    "correo_conductor": resultado[29]
                 }
 
         finally:
@@ -128,6 +163,11 @@ class VehiculoMySQLRepository:
             conexion.close()
 
     def buscar_por_id(self, vehiculo_id):
+        print("\n==============================")
+        print("ENTRÓ A buscar_por_id()")
+        print("vehiculo_id:", vehiculo_id)
+        print("==============================")
+
         conexion = get_connection()
 
         try:
@@ -144,6 +184,10 @@ class VehiculoMySQLRepository:
                         v.num_serie,
                         v.vin_serie,
                         v.f_matricula,
+                        v.capacidad,
+                        '' AS tipo,
+                        cb.nombre AS combustible,
+                        '' AS modalidad,
 
                         m.nombre AS marca,
                         cv.nombre AS clase,
@@ -157,7 +201,13 @@ class VehiculoMySQLRepository:
                         p.direccion,
                         p.telefono,
                         p.celular,
-                        p.email
+                        p.email,
+
+                        mt.nombre AS motorista_nombre,
+                        mt.num_documento AS motorista_documento,
+                        mt.celular AS motorista_celular,
+                        mt.direccion AS motorista_direccion,
+                        mt.email AS motorista_email
 
                     FROM vehiculo v
 
@@ -182,6 +232,12 @@ class VehiculoMySQLRepository:
                     LEFT JOIN servicio s
                         ON v.servicio_id = s.servicio_id
 
+                    LEFT JOIN combustible cb
+                        ON v.combustible_id = cb.combustible_id
+
+                    LEFT JOIN motorista mt
+                        ON v.motorista_id = mt.motorista_id
+
                     WHERE v.vehiculo_id = %s
                 """, (vehiculo_id,))
 
@@ -200,18 +256,27 @@ class VehiculoMySQLRepository:
                     "serie": resultado[6],
                     "vin": resultado[7],
                     "fecha_matricula": resultado[8],
-                    "marca": resultado[9],
-                    "clase": resultado[10],
-                    "ruta": resultado[11],
-                    "color": resultado[12],
-                    "carroceria": resultado[13],
-                    "servicio": resultado[14],
-                    "propietario": resultado[15],
-                    "documento": resultado[16],
-                    "direccion": resultado[17],
-                    "telefono": resultado[18],
-                    "celular": resultado[19],
-                    "email": resultado[20]
+                    "capacidad": resultado[9],
+                    "tipo": resultado[10],
+                    "combustible": resultado[11],
+                    "modalidad": resultado[12],
+                    "marca": resultado[13],
+                    "clase": resultado[14],
+                    "ruta": resultado[15],
+                    "color": resultado[16],
+                    "carroceria": resultado[17],
+                    "servicio": resultado[18],
+                    "propietario": resultado[19],
+                    "documento": resultado[20],
+                    "direccion": resultado[21],
+                    "telefono": resultado[22],
+                    "celular": resultado[23],
+                    "email": resultado[24],
+                    "nombre_conductor": resultado[25],
+                    "documento_conductor": resultado[26],
+                    "celular_conductor": resultado[27],
+                    "direccion_conductor": resultado[28],
+                    "correo_conductor": resultado[29]
                 }
 
         finally:

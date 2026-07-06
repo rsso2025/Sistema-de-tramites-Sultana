@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from docx import Document
+from docx2pdf import convert
 
 from app.core.entities import DocumentoGeneradoDTO, VehiculoDTO
 from app.infrastructure.repositories.documento_repository import DocumentoRepository
@@ -19,30 +20,214 @@ from app.infrastructure.repositories.vehiculo_repository import VehiculoReposito
 
 def _reemplazar_texto_en_parrafo(parrafo, datos: Dict[str, str]) -> None:
     """
-    Reemplaza placeholders sin destruir formato,
-    tabulaciones ni estilos de Word.
+    Infraestructura base del motor run-aware (RPSR).
+
+    Sprint 5B.1: solo construye texto lógico y mapa rico por carácter.
+    No detecta placeholders ni modifica runs.
     """
 
-    texto_original = parrafo.text
-    texto_reemplazado = texto_original
-    hubo_cambios = False
+    # Fase 0: salida temprana para evitar procesamiento innecesario.
+    runs = list(parrafo.runs)
+    if not runs:
+        return
 
-    for clave, valor in datos.items():
-        placeholder1 = f"{{{{{clave}}}}}"
-        placeholder2 = f"{{{clave}}}"
-        valor_str = str(valor)
+    texto_logico = "".join((run.text or "") for run in runs)
+    if "{" not in texto_logico:
+        return
 
-        if placeholder1 in texto_reemplazado:
-            texto_reemplazado = texto_reemplazado.replace(placeholder1, valor_str)
-            hubo_cambios = True
+    # Fase 1 + Fase 2: mapa rico por carácter y texto lógico concatenado.
+    # Cada entrada conserva trazabilidad exacta entre índice global y run original.
+    mapa_caracteres = []
+    indice_global = 0
+    for indice_run, run in enumerate(runs):
+        texto_run = run.text or ""
+        for posicion_run, caracter in enumerate(texto_run):
+            mapa_caracteres.append(
+                {
+                    "char": caracter,
+                    "global_index": indice_global,
+                    "run_index": indice_run,
+                    "run_char_index": posicion_run,
+                    "run_ref": run,
+                }
+            )
+            indice_global += 1
 
-        if placeholder2 in texto_reemplazado:
-            texto_reemplazado = texto_reemplazado.replace(placeholder2, valor_str)
-            hubo_cambios = True
+    # Validación interna de infraestructura base (sin efectos en documento).
+    if len(mapa_caracteres) != len(texto_logico):
+        return
 
-    if hubo_cambios and texto_reemplazado != texto_original:
-        parrafo.clear()
-        parrafo.add_run(texto_reemplazado)
+    # Fase 3: escáner secuencial de placeholders sobre texto lógico.
+    # Solo detecta spans válidos; no modifica texto ni runs.
+    def _es_nombre_variable_valido(nombre: str) -> bool:
+        if not nombre:
+            return False
+        return all(ch.isalnum() or ch == "_" for ch in nombre)
+
+    spans = []
+    longitud = len(texto_logico)
+    i = 0
+
+    while i < longitud:
+        if texto_logico[i] != "{":
+            i += 1
+            continue
+
+        # Caso doble llave: {{variable}}
+        if i + 1 < longitud and texto_logico[i + 1] == "{":
+            inicio = i
+            j = i + 2
+            encontrado = False
+
+            while j + 1 < longitud:
+                if texto_logico[j] == "}" and texto_logico[j + 1] == "}":
+                    nombre_variable = texto_logico[i + 2 : j]
+                    if _es_nombre_variable_valido(nombre_variable):
+                        placeholder = texto_logico[inicio : j + 2]
+                        spans.append(
+                            {
+                                "start_index": inicio,
+                                "end_index": j + 1,
+                                "placeholder_text": placeholder,
+                                "variable_name": nombre_variable,
+                                "placeholder_length": len(placeholder),
+                            }
+                        )
+                        i = j + 2
+                        encontrado = True
+                    else:
+                        i = inicio + 2
+                        encontrado = True
+                    break
+                j += 1
+
+            if not encontrado:
+                i = inicio + 2
+            continue
+
+        # Caso llave simple: {variable}
+        inicio = i
+        j = i + 1
+        while j < longitud and texto_logico[j] != "}":
+            if texto_logico[j] == "{":
+                break
+            j += 1
+
+        if j < longitud and texto_logico[j] == "}":
+            nombre_variable = texto_logico[i + 1 : j]
+            if _es_nombre_variable_valido(nombre_variable):
+                placeholder = texto_logico[inicio : j + 1]
+                spans.append(
+                    {
+                        "start_index": inicio,
+                        "end_index": j,
+                        "placeholder_text": placeholder,
+                        "variable_name": nombre_variable,
+                        "placeholder_length": len(placeholder),
+                    }
+                )
+                i = j + 1
+                continue
+
+        # Placeholder dañado o incompleto: se ignora.
+        i = inicio + 1
+
+    # Fase 4: resolver spans lógicos hacia runs físicos y offsets exactos.
+    # Solo calcula metadatos para fases posteriores; no modifica el documento.
+    placeholders_resueltos = []
+    for span in spans:
+        inicio = span["start_index"]
+        fin = span["end_index"]
+
+        if inicio < 0 or fin >= len(mapa_caracteres) or inicio > fin:
+            continue
+
+        entrada_inicio = mapa_caracteres[inicio]
+        entrada_fin = mapa_caracteres[fin]
+
+        start_run_index = entrada_inicio["run_index"]
+        end_run_index = entrada_fin["run_index"]
+        start_offset = entrada_inicio["run_char_index"]
+        end_offset = entrada_fin["run_char_index"]
+
+        tramo = mapa_caracteres[inicio : fin + 1]
+        conteo_por_run = {}
+        for entrada in tramo:
+            indice_run = entrada["run_index"]
+            conteo_por_run[indice_run] = conteo_por_run.get(indice_run, 0) + 1
+
+        affected_run_indices = sorted(conteo_por_run.keys())
+        affected_run_count = len(affected_run_indices)
+
+        if affected_run_count == 1:
+            base_run_index = affected_run_indices[0]
+        elif affected_run_count == 2:
+            base_run_index = affected_run_indices[0]
+        else:
+            base_run_index = max(
+                affected_run_indices,
+                key=lambda indice: (conteo_por_run[indice], -indice),
+            )
+
+        placeholders_resueltos.append(
+            {
+                "placeholder_text": span["placeholder_text"],
+                "variable_name": span["variable_name"],
+                "start_index": inicio,
+                "end_index": fin,
+                "start_run_index": start_run_index,
+                "end_run_index": end_run_index,
+                "start_offset": start_offset,
+                "end_offset": end_offset,
+                "affected_run_count": affected_run_count,
+                "base_run_index": base_run_index,
+            }
+        )
+
+    # Fase 5: aplicar reemplazo físico sobre runs sin reconstruir el párrafo.
+    # Procesa de derecha a izquierda para mantener válidos los offsets previos.
+    for placeholder in sorted(
+        placeholders_resueltos,
+        key=lambda item: item["start_index"],
+        reverse=True,
+    ):
+        nombre_variable = placeholder["variable_name"]
+        if nombre_variable not in datos:
+            continue
+
+        valor_reemplazo = str(datos[nombre_variable])
+        start_run_index = placeholder["start_run_index"]
+        end_run_index = placeholder["end_run_index"]
+        start_offset = placeholder["start_offset"]
+        end_offset = placeholder["end_offset"]
+        base_run_index = placeholder["base_run_index"]
+
+        if start_run_index == end_run_index:
+            run = runs[start_run_index]
+            texto_run = run.text or ""
+            prefijo = texto_run[:start_offset]
+            sufijo = texto_run[end_offset + 1 :]
+            run.text = f"{prefijo}{valor_reemplazo}{sufijo}"
+            continue
+
+        for indice_run in range(start_run_index, end_run_index + 1):
+            run = runs[indice_run]
+            texto_run = run.text or ""
+
+            if indice_run == start_run_index:
+                nuevo_texto = texto_run[:start_offset]
+                if indice_run == base_run_index:
+                    nuevo_texto += valor_reemplazo
+            elif indice_run == end_run_index:
+                nuevo_texto = texto_run[end_offset + 1 :]
+                if indice_run == base_run_index:
+                    nuevo_texto = f"{valor_reemplazo}{nuevo_texto}"
+            elif indice_run == base_run_index:
+                nuevo_texto = valor_reemplazo
+            else:
+                nuevo_texto = ""
+
+            run.text = nuevo_texto
 
 
 def _reemplazar_texto_en_tabla(tabla, datos: Dict[str, str]) -> None:
@@ -50,6 +235,8 @@ def _reemplazar_texto_en_tabla(tabla, datos: Dict[str, str]) -> None:
         for celda in fila.cells:
             for parrafo in celda.paragraphs:
                 _reemplazar_texto_en_parrafo(parrafo, datos)
+            for tabla_anidada in celda.tables:
+                _reemplazar_texto_en_tabla(tabla_anidada, datos)
 
 
 def _reemplazar_texto_en_documento(documento: Document, datos: Dict[str, str]) -> None:
@@ -57,6 +244,141 @@ def _reemplazar_texto_en_documento(documento: Document, datos: Dict[str, str]) -
         _reemplazar_texto_en_parrafo(parrafo, datos)
     for tabla in documento.tables:
         _reemplazar_texto_en_tabla(tabla, datos)
+    for section in documento.sections:
+        for parrafo in section.header.paragraphs:
+            _reemplazar_texto_en_parrafo(parrafo, datos)
+        for tabla in section.header.tables:
+            _reemplazar_texto_en_tabla(tabla, datos)
+        for parrafo in section.footer.paragraphs:
+            _reemplazar_texto_en_parrafo(parrafo, datos)
+        for tabla in section.footer.tables:
+            _reemplazar_texto_en_tabla(tabla, datos)
+
+
+def _detectar_marcadores_residuales_en_texto(texto: str) -> List[str]:
+    hallazgos = []
+    longitud = len(texto)
+    mascara = [False] * longitud
+    i = 0
+
+    while i < longitud:
+        if texto[i] != "{":
+            i += 1
+            continue
+
+        if i + 1 < longitud and texto[i + 1] == "{":
+            inicio = i
+            j = i + 2
+            encontrado = False
+
+            while j + 1 < longitud:
+                if texto[j] == "}" and texto[j + 1] == "}":
+                    nombre = texto[i + 2 : j]
+                    if nombre and all(ch.isalnum() or ch == "_" for ch in nombre):
+                        placeholder = texto[inicio : j + 2]
+                        hallazgos.append(f"placeholder residual: {placeholder}")
+                        for indice in range(inicio, j + 2):
+                            mascara[indice] = True
+                        i = j + 2
+                        encontrado = True
+                    else:
+                        i = inicio + 2
+                        encontrado = True
+                    break
+                j += 1
+
+            if not encontrado:
+                i = inicio + 2
+            continue
+
+        inicio = i
+        j = i + 1
+        while j < longitud and texto[j] != "}":
+            if texto[j] == "{":
+                break
+            j += 1
+
+        if j < longitud and texto[j] == "}":
+            nombre = texto[i + 1 : j]
+            if nombre and all(ch.isalnum() or ch == "_" for ch in nombre):
+                placeholder = texto[inicio : j + 1]
+                hallazgos.append(f"placeholder residual: {placeholder}")
+                for indice in range(inicio, j + 1):
+                    mascara[indice] = True
+                i = j + 1
+                continue
+
+        i = inicio + 1
+
+    residuo_llaves = "".join(
+        caracter
+        for indice, caracter in enumerate(texto)
+        if not mascara[indice] and caracter in "{}"
+    )
+    if residuo_llaves:
+        hallazgos.append(f"llaves residuales: {residuo_llaves}")
+
+    return hallazgos
+
+
+def _registrar_hallazgos_en_parrafos(parrafos, ubicacion_base: str, hallazgos: List[str]) -> None:
+    for indice, parrafo in enumerate(parrafos, start=1):
+        texto = parrafo.text or ""
+        if "{" not in texto and "}" not in texto:
+            continue
+
+        hallazgos_texto = _detectar_marcadores_residuales_en_texto(texto)
+        for hallazgo in hallazgos_texto:
+            hallazgos.append(f"{ubicacion_base} párrafo {indice}: {hallazgo}")
+
+
+def _registrar_hallazgos_en_tabla(tabla, ubicacion_base: str, hallazgos: List[str]) -> None:
+    for indice_fila, fila in enumerate(tabla.rows, start=1):
+        for indice_celda, celda in enumerate(fila.cells, start=1):
+            ubicacion_celda = f"{ubicacion_base} fila {indice_fila} celda {indice_celda}"
+            _registrar_hallazgos_en_parrafos(celda.paragraphs, ubicacion_celda, hallazgos)
+            for indice_tabla, tabla_anidada in enumerate(celda.tables, start=1):
+                ubicacion_tabla = f"{ubicacion_celda} tabla anidada {indice_tabla}"
+                _registrar_hallazgos_en_tabla(tabla_anidada, ubicacion_tabla, hallazgos)
+
+
+def _validar_documento_generado(documento: Document) -> None:
+    hallazgos = []
+
+    _registrar_hallazgos_en_parrafos(documento.paragraphs, "body", hallazgos)
+    for indice_tabla, tabla in enumerate(documento.tables, start=1):
+        _registrar_hallazgos_en_tabla(tabla, f"body tabla {indice_tabla}", hallazgos)
+
+    for indice_seccion, section in enumerate(documento.sections, start=1):
+        _registrar_hallazgos_en_parrafos(
+            section.header.paragraphs,
+            f"header sección {indice_seccion}",
+            hallazgos,
+        )
+        for indice_tabla, tabla in enumerate(section.header.tables, start=1):
+            _registrar_hallazgos_en_tabla(
+                tabla,
+                f"header sección {indice_seccion} tabla {indice_tabla}",
+                hallazgos,
+            )
+
+        _registrar_hallazgos_en_parrafos(
+            section.footer.paragraphs,
+            f"footer sección {indice_seccion}",
+            hallazgos,
+        )
+        for indice_tabla, tabla in enumerate(section.footer.tables, start=1):
+            _registrar_hallazgos_en_tabla(
+                tabla,
+                f"footer sección {indice_seccion} tabla {indice_tabla}",
+                hallazgos,
+            )
+
+    if hallazgos:
+        detalle = " | ".join(hallazgos)
+        raise ValueError(
+            f"Documento incompleto. Hallazgos: {len(hallazgos)}. {detalle}"
+        )
 
 
 def generar_documento(ruta_plantilla: Path, ruta_salida: Path, datos: Dict[str, str]) -> Path:
@@ -65,6 +387,7 @@ def generar_documento(ruta_plantilla: Path, ruta_salida: Path, datos: Dict[str, 
 
     documento = Document(ruta_plantilla)
     _reemplazar_texto_en_documento(documento, datos)
+    _validar_documento_generado(documento)
     documento.save(ruta_salida)
     return ruta_salida
 
@@ -114,21 +437,42 @@ class DocumentoService:
             # ==========================
             "nombre_propietario": vehiculo.nombre_propietario or "",
             "documento": vehiculo.documento_propietario or "",
+            "documento_propietario": vehiculo.documento_propietario or "",
+            "telefono_propietario": vehiculo.telefono_propietario or "",
+            "direccion_propietario": vehiculo.direccion_propietario or "",
             "placa": vehiculo.placa or "",
+            "numero_interno": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
             "marca": vehiculo.marca or "",
             "modelo": vehiculo.modelo or "",
             "clase": vehiculo.clase or "",
+            "motor": vehiculo.motor or "",
+            "chasis": vehiculo.chasis or "",
+            "serie": vehiculo.serie or "",
+            "vin": vehiculo.vin or "",
+            "fecha_matricula": vehiculo.fecha_matricula or "",
             "fecha_afiliacion": vehiculo.fecha_afiliacion or "",
+            "capacidad": vehiculo.capacidad or "",
+            "tipo": vehiculo.tipo or "",
+            "combustible": vehiculo.combustible or "",
+            "modalidad": vehiculo.modalidad or "",
+            "ruta": vehiculo.ruta or "",
+            "color": vehiculo.color or "",
+            "carroceria": vehiculo.carroceria or "",
+            "servicio": vehiculo.servicio or "",
+            "nombre_conductor": vehiculo.nombre_conductor or "",
+            "documento_conductor": vehiculo.documento_conductor or "",
+            "celular_conductor": vehiculo.celular_conductor or "",
+            "direccion_conductor": vehiculo.direccion_conductor or "",
+            "correo_conductor": vehiculo.correo_conductor or "",
 
-            # Número interno del vehículo
-            "numero_interno": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
-
-            # Temporalmente usa el mismo valor hasta mapear el número de motor real desde MySQL
-            "numero_motor": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
+            # Mantiene compatibilidad: usa motor real si existe, si no conserva el fallback previo.
+            "numero_motor": vehiculo.motor or (str(vehiculo.numero_interno) if vehiculo.numero_interno else ""),
         }
 
         # Agregar campos editables; si hay fecha vacía, usar fecha actual
         hoy = datetime.now().strftime("%d/%m/%Y")
+        fecha_larga = datetime.now().strftime("%d de %B de %Y")
+        datos["fecha_larga"] = fecha_larga
         for campo, valor in datos_editables.items():
             if "fecha" in campo.lower() and not valor.strip():
                 datos[campo] = hoy
@@ -163,6 +507,9 @@ class DocumentoService:
         if not config:
             return False, "Tipo de documento no válido."
 
+        if not vehiculo:
+            return False, "No se encontraron datos del vehículo."
+
         # Preparar datos combinados
         datos = self.preparar_datos_plantilla(vehiculo, datos_editables, tipo)
 
@@ -171,8 +518,30 @@ class DocumentoService:
         ruta_plantilla = base_dir / "assets" / "templates" / config["plantilla"]
 
         try:
-            # Generar documento físico
             salida_path = Path(ruta_salida)
+            es_pdf = salida_path.suffix.lower() == ".pdf"
+
+            if es_pdf:
+                ruta_docx_temporal = salida_path.with_suffix(".docx")
+                generar_documento(ruta_plantilla, ruta_docx_temporal, datos)
+                convert(str(ruta_docx_temporal), str(salida_path.parent))
+
+                ruta_pdf_final = salida_path.with_suffix(".pdf")
+                if not ruta_pdf_final.exists():
+                    raise FileNotFoundError(f"No se encontró el PDF generado: {ruta_pdf_final}")
+
+                ruta_docx_temporal.unlink(missing_ok=True)
+
+                registro = DocumentoGeneradoDTO(
+                    tipo_documento=tipo,
+                    placa_vehiculo=vehiculo.placa,
+                    ruta_archivo=str(ruta_pdf_final),
+                )
+                self.documento_repo.insertar(registro)
+
+                return True, str(ruta_pdf_final)
+
+            # Generar documento físico
             ruta_generada = generar_documento(ruta_plantilla, salida_path, datos)
 
             # Registrar en historial

@@ -8,11 +8,8 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from datetime import datetime
-from pathlib import Path
 import unicodedata
 import traceback
-
-from docx2pdf import convert
 
 from app.services.document_service import DocumentoService
 from app.services.vehiculo_mysql_service import VehiculoMySQLService
@@ -428,64 +425,31 @@ class DocumentosWindow:
             )
             return
 
-        if not es_pdf:
-            exito, mensaje = self.documento_service.generar_documento(
-                tipo=tipo,
-                vehiculo=self.vehiculo_data,
-                datos_editables=datos_editables,
-                ruta_salida=ruta_guardado,
-            )
-
-            if exito:
-                self.label_estado.configure(
-                    text=f"Documento generado correctamente:\n{mensaje}",
-                    text_color="green",
-                )
-                messagebox.showinfo("Éxito", f"Documento generado correctamente:\n{mensaje}")
-            else:
-                self.label_estado.configure(
-                    text=f"Error: {mensaje}",
-                    text_color="red",
-                )
-                messagebox.showerror("Error", f"No se pudo generar el documento:\n{mensaje}")
-            return
-
-        ruta_pdf = Path(ruta_guardado)
-        ruta_docx_temporal = ruta_pdf.with_suffix(".docx")
-
         exito, mensaje = self.documento_service.generar_documento(
             tipo=tipo,
             vehiculo=self.vehiculo_data,
             datos_editables=datos_editables,
-            ruta_salida=str(ruta_docx_temporal),
+            ruta_salida=ruta_guardado,
         )
 
-        if not exito:
+        if exito:
+            texto_exito = "PDF generado correctamente" if es_pdf else "Documento generado correctamente"
             self.label_estado.configure(
-                text=f"Error: {mensaje}",
-                text_color="red",
-            )
-            messagebox.showerror("Error", f"No se pudo generar el documento Word intermedio:\n{mensaje}")
-            return
-
-        try:
-            convert(str(ruta_docx_temporal), str(ruta_pdf.parent))
-            ruta_pdf_final = ruta_pdf.with_suffix(".pdf")
-
-            if not ruta_pdf_final.exists():
-                raise FileNotFoundError(f"No se encontró el PDF generado: {ruta_pdf_final}")
-
-            ruta_docx_temporal.unlink(missing_ok=True)
-
-            self.label_estado.configure(
-                text=f"PDF generado correctamente:\n{ruta_pdf_final}",
+                text=f"{texto_exito}:\n{mensaje}",
                 text_color="green",
             )
-            messagebox.showinfo("Éxito", f"PDF generado correctamente:\n{ruta_pdf_final}")
-        except Exception as e:
-            traceback.print_exc()
-            self.label_estado.configure(
-                text=f"Error convirtiendo a PDF: {str(e)}",
-                text_color="red",
-            )
-            messagebox.showerror("Error", f"No se pudo convertir el documento a PDF:\n{str(e)}")
+            messagebox.showinfo("Éxito", f"{texto_exito}:\n{mensaje}")
+            return
+
+        self.label_estado.configure(
+            text=f"Error: {mensaje}",
+            text_color="red",
+        )
+
+        if es_pdf:
+            if "plantilla" in mensaje.lower() or "tipo de documento" in mensaje.lower():
+                messagebox.showerror("Error", f"No se pudo generar el documento Word intermedio:\n{mensaje}")
+            else:
+                messagebox.showerror("Error", f"No se pudo convertir el documento a PDF:\n{mensaje}")
+        else:
+            messagebox.showerror("Error", f"No se pudo generar el documento:\n{mensaje}")

@@ -39,6 +39,19 @@ class VehiculoDTO:
     modelo: Optional[str] = ""
     clase: Optional[str] = ""
     fecha_afiliacion: Optional[str] = ""
+    motor: Optional[str] = None
+    chasis: Optional[str] = None
+    serie: Optional[str] = None
+    vin: Optional[str] = None
+    fecha_matricula: Optional[str] = None
+    capacidad: Optional[str] = None
+    tipo: Optional[str] = None
+    combustible: Optional[str] = None
+    modalidad: Optional[str] = None
+    ruta: Optional[str] = None
+    color: Optional[str] = None
+    carroceria: Optional[str] = None
+    servicio: Optional[str] = None
     id: Optional[int] = None
 
     # Datos del propietario (se llenan en consultas JOIN)
@@ -46,6 +59,12 @@ class VehiculoDTO:
     nombre_propietario: Optional[str] = None
     telefono_propietario: Optional[str] = None
     direccion_propietario: Optional[str] = None
+
+    nombre_conductor: Optional[str] = None
+    documento_conductor: Optional[str] = None
+    celular_conductor: Optional[str] = None
+    direccion_conductor: Optional[str] = None
+    correo_conductor: Optional[str] = None
 
 
 @dataclass

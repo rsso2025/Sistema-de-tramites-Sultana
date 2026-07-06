@@ -1,35 +1,102 @@
 {
-"Certificación": {
-"plantilla": "plantilla_certificacion_contrato.docx",
-"nombre_archivo": "certificacion",
-"campos_editables": [
-["Fecha inicio", "fecha_inicio", ""],
-["Fecha fin", "fecha_fin", ""],
-["Fecha firma", "fecha_firma", ""],
-["Duración", "duracion", "1 año"],
-["Fecha emisión", "fecha_emision", ""],
-["Ciudad", "ciudad", "Sultana"]
-]
-},
-"Formato de Accidente (Interno)": {
-"plantilla": "Informe_Accidente_Sencillo.docx",
-"nombre_archivo": "formato_accidente_interno",
-"campos_editables": [
-["Fecha del reporte", "fecha_reporte", ""],
-["Fecha del incidente", "fecha_incidente", ""],
-["Hora del incidente", "hora_incidente", ""],
-["Dirección del incidente", "direccion_incidente", ""],
-["Ruta", "ruta", ""],
-["Motorista", "motorista", ""],
-["Nombre de quien reporta", "nombre_reporta", ""],
-["C.C. de quien reporta", "cc_reporta", ""],
-["Cargo", "cargo_reporta", "CONDUCTOR"],
-["Tipo de novedad", "tipo_novedad", "Incidente"],
-["Lugar de la novedad", "lugar_novedad", "Vía"],
-["Otro lugar", "otro_lugar", ""],
-["Descripción de la novedad", "descripcion_novedad", ""],
-["Daños Vehículo 1", "Daños_Vehiculo_1", ""],
-["Daños Vehículo 2", "Daños_Vehiculo_2", ""]
-]
-}
+  "Certificación": {
+    "plantilla": "plantilla_certificacion_contrato.docx",
+    "nombre_archivo": "certificacion",
+    "campos_editables": [
+      ["Fecha inicio", "fecha_inicio", ""],
+      ["Fecha fin", "fecha_fin", ""],
+      ["Fecha firma", "fecha_firma", ""],
+      ["Duración", "duracion", "1 año"],
+      ["Fecha emisión", "fecha_emision", ""],
+      ["Ciudad", "ciudad", "Sultana"]
+    ]
+  },
+  "Formato de Accidente (Interno)": {
+    "plantilla": "Informe_Accidente_Sencillo.docx",
+    "nombre_archivo": "formato_accidente_interno",
+    "campos_editables": [
+      ["Fecha del reporte", "fecha_reporte", ""],
+      ["Fecha del incidente", "fecha_incidente", ""],
+      ["Hora del incidente", "hora_incidente", ""],
+      ["Dirección del incidente", "direccion_incidente", ""],
+      ["Ruta", "ruta", ""],
+      ["Motorista", "motorista", ""],
+      ["Nombre de quien reporta", "nombre_reporta", ""],
+      ["C.C. de quien reporta", "cc_reporta", ""],
+      ["Cargo", "cargo_reporta", "CONDUCTOR"],
+      ["Tipo de novedad", "tipo_novedad", "Incidente"],
+      ["Lugar de la novedad", "lugar_novedad", "Vía"],
+      ["Otro lugar", "otro_lugar", ""],
+      ["Descripción de la novedad", "descripcion_novedad", ""],
+      ["Daños Vehículo 1", "Daños_Vehiculo_1", ""],
+      ["Daños Vehículo 2", "Daños_Vehiculo_2", ""]
+    ]
+  },
+  "Paz y Salvo": {
+    "plantilla": "PAZ_Y_SALVO.docx",
+    "nombre_archivo": "paz_y_salvo",
+    "campos_editables": [
+      ["Ciudad de expedición del propietario", "ciudad_expedicion", ""]
+    ]
+  },
+  "Cesión de Derechos": {
+    "plantilla": "CESION_DE_DERECHOS.docx",
+    "nombre_archivo": "cesion_derechos",
+    "campos_editables": [
+      ["Nombre del cesionario", "nombre_cesionario", ""],
+      ["Documento del cesionario", "documento_cesionario", ""],
+      ["Ciudad de expedición del cesionario", "ciudad_cesionario", ""],
+      ["Ciudad de expedición del propietario", "ciudad_expedicion", ""]
+    ]
+  },
+  "Constancia de Ingresos": {
+    "plantilla": "CONSTANCIA_INGRESOS.docx",
+    "nombre_archivo": "constancia_ingresos",
+    "campos_editables": [
+      ["Destinatario", "destinatario", "DIAN"],
+      ["Ingreso en letras", "ingreso_letras", ""],
+      ["Ingreso en números", "ingreso_valor", ""],
+      ["Ciudad de expedición", "ciudad_expedicion", ""]
+    ]
+  },
+  "Desvinculación Administrativa": {
+    "plantilla": "DESVINCULACION_ADMINISTRATIVA.docx",
+    "nombre_archivo": "desvinculacion_administrativa",
+    "campos_editables": [
+      ["Fecha de incumplimiento", "fecha_incumplimiento", ""],
+      ["Ciudad", "ciudad", "Santiago de Cali"]
+    ]
+  },
+  "Desvinculación Mutuo Acuerdo": {
+    "plantilla": "DESVINCULACION_MUTUO_ACUERDO.docx",
+    "nombre_archivo": "desvinculacion_mutuo_acuerdo",
+    "campos_editables": []
+  },
+  "Carta Ministerio Desvinculación": {
+    "plantilla": "CARTA_MINISTERIO_DESVINCULACION.docx",
+    "nombre_archivo": "carta_ministerio_desvinculacion",
+    "campos_editables": []
+  },
+  "Informe Accidente Daños Materiales": {
+    "plantilla": "INFORME_ACCIDENTE_DANOS_MATERIALES.docx",
+    "nombre_archivo": "informe_accidente_danos_materiales",
+    "campos_editables": [
+      ["Lugar del accidente", "lugar_accidente", ""],
+      ["Ciudad del accidente", "ciudad_accidente", "Cali"],
+      ["Fecha del accidente", "fecha_accidente", ""],
+      ["Hora del accidente", "hora_accidente", ""],
+      ["Seguro todo riesgo", "seguro_todo_riesgo", "SI"],
+      ["Informe de tránsito", "informe_transito", "NO"],
+      ["Tipo de inmueble", "tipo_inmueble", ""],
+      ["Nombre del tercero", "nombre_tercero", ""],
+      ["Documento del tercero", "documento_tercero", ""],
+      ["Dirección del tercero", "direccion_tercero", ""],
+      ["Ciudad del tercero", "ciudad_tercero", ""],
+      ["Celular del tercero", "celular_tercero", ""],
+      ["Correo del tercero", "correo_tercero", ""],
+      ["Relato de los hechos", "relato_hechos", ""],
+      ["Daños del vehículo", "danos_vehiculo", ""],
+      ["Daños del tercero", "danos_tercero", ""]
+    ]
+  }
 }
