@@ -424,22 +424,41 @@ class DocumentoService:
 
         return VehiculoMySQLService().buscar_por_id(vehiculo_id)
 
-    def preparar_datos_plantilla(
-        self, vehiculo: VehiculoDTO, datos_editables: Dict[str, str], tipo: str
-    ) -> Dict[str, str]:
+    # =================== MÉTODOS AUXILIARES PARA PREPARAR DATOS ===================
+
+    def _obtener_fecha_actual(self) -> Tuple[str, str]:
+        """Devuelve la fecha actual en formato corto y largo."""
+        hoy = datetime.now().strftime("%d/%m/%Y")
+        fecha_larga = datetime.now().strftime("%d de %B de %Y")
+        return hoy, fecha_larga
+
+    def _datos_sistema(self) -> Dict[str, str]:
         """
-        Combina los datos automáticos del vehículo con los campos editables
-        y prepara el diccionario final para la plantilla.
+        Genera las variables automáticas del sistema a partir de la fecha y hora actuales.
+
+        Retorna un diccionario con:
+            - dia         : día del mes (número)
+            - mes         : nombre completo del mes en español
+            - anio        : año con cuatro dígitos
+            - fecha_corta : DD/MM/AAAA
+            - fecha_larga : "día de mes de año"
+
+        Esta función centraliza la creación de variables de sistema y puede extenderse
+        en el futuro con nuevas variables (ej. hora, minuto, etc.) sin afectar al resto.
         """
-        datos = {
-            # ==========================
-            # DATOS AUTOMÁTICOS DEL VEHÍCULO
-            # ==========================
-            "nombre_propietario": vehiculo.nombre_propietario or "",
-            "documento": vehiculo.documento_propietario or "",
-            "documento_propietario": vehiculo.documento_propietario or "",
-            "telefono_propietario": vehiculo.telefono_propietario or "",
-            "direccion_propietario": vehiculo.direccion_propietario or "",
+        ahora = datetime.now()
+        return {
+            "dia": ahora.strftime("%d"),
+            "mes": ahora.strftime("%B"),
+            "anio": ahora.strftime("%Y"),
+            "fecha_corta": ahora.strftime("%d/%m/%Y"),
+            "fecha_larga": ahora.strftime("%d de %B de %Y"),
+        }
+
+    def _datos_vehiculo(self, vehiculo: VehiculoDTO) -> Dict[str, str]:
+        """Extrae los campos del vehículo (excepto propietario y conductor)."""
+        # NOTA: numero_motor es solo el motor real; nunca se usa numero_interno como fallback.
+        return {
             "placa": vehiculo.placa or "",
             "numero_interno": str(vehiculo.numero_interno) if vehiculo.numero_interno else "",
             "marca": vehiculo.marca or "",
@@ -459,27 +478,48 @@ class DocumentoService:
             "color": vehiculo.color or "",
             "carroceria": vehiculo.carroceria or "",
             "servicio": vehiculo.servicio or "",
+            "numero_motor": vehiculo.motor or "",  # alias heredado, se retirará en futura versión
+        }
+
+    def _datos_propietario(self, vehiculo: VehiculoDTO) -> Dict[str, str]:
+        """Extrae los campos del propietario."""
+        # documento es un alias heredado para mantener compatibilidad con plantillas existentes.
+        # documento_propietario será la variable oficial para todas las nuevas plantillas.
+        return {
+            "nombre_propietario": vehiculo.nombre_propietario or "",
+            "documento": vehiculo.documento_propietario or "",  # alias heredado
+            "documento_propietario": vehiculo.documento_propietario or "",
+            "ciudad_expedicion": vehiculo.ciudad_expedicion or "",
+            "telefono_propietario": vehiculo.telefono_propietario or "",
+            "direccion_propietario": vehiculo.direccion_propietario or "",
+        }
+
+    def _datos_conductor(self, vehiculo: VehiculoDTO) -> Dict[str, str]:
+        """Extrae los campos del conductor."""
+        return {
             "nombre_conductor": vehiculo.nombre_conductor or "",
             "documento_conductor": vehiculo.documento_conductor or "",
             "celular_conductor": vehiculo.celular_conductor or "",
             "direccion_conductor": vehiculo.direccion_conductor or "",
             "correo_conductor": vehiculo.correo_conductor or "",
-
-            # Mantiene compatibilidad: usa motor real si existe, si no conserva el fallback previo.
-            "numero_motor": vehiculo.motor or (str(vehiculo.numero_interno) if vehiculo.numero_interno else ""),
         }
 
-        # Agregar campos editables; si hay fecha vacía, usar fecha actual
-        hoy = datetime.now().strftime("%d/%m/%Y")
-        fecha_larga = datetime.now().strftime("%d de %B de %Y")
-        datos["fecha_larga"] = fecha_larga
+    def _aplicar_editables(self, datos: Dict[str, str], datos_editables: Dict[str, str], hoy: str) -> None:
+        """
+        Procesa los campos editables.
+        Si el campo es de tipo fecha y está vacío, se rellena con la fecha actual.
+        """
         for campo, valor in datos_editables.items():
             if "fecha" in campo.lower() and not valor.strip():
                 datos[campo] = hoy
             else:
                 datos[campo] = valor.strip() if valor else ""
 
-        # Rellenar campos de fecha vacíos que vienen de la configuración
+    def _aplicar_defaults_config(self, datos: Dict[str, str], tipo: str, hoy: str) -> None:
+        """
+        Rellena los campos faltantes que vienen definidos en la configuración
+        para el tipo de documento.
+        """
         config = self.config.get(tipo, {})
         for label, clave, valor_defecto in config.get("campos_editables", []):
             if clave not in datos:
@@ -488,7 +528,73 @@ class DocumentoService:
                 else:
                     datos[clave] = valor_defecto if valor_defecto else ""
 
+    # =================== MÉTODO PRINCIPAL REFACTORIZADO ===================
+
+    def preparar_datos_plantilla(
+        self, vehiculo: VehiculoDTO, datos_editables: Dict[str, str], tipo: str
+    ) -> Dict[str, str]:
+        """
+        Combina los datos automáticos del vehículo con los campos editables
+        y prepara el diccionario final para la plantilla.
+        """
+        # Obtener variables del sistema (dia, mes, anio, fecha_corta, fecha_larga)
+        datos_sistema = self._datos_sistema()
+        hoy = datos_sistema["fecha_corta"]
+
+        datos = {}
+
+        # Bloque: datos del vehículo
+        datos.update(self._datos_vehiculo(vehiculo))
+
+        # Bloque: datos del propietario
+        datos.update(self._datos_propietario(vehiculo))
+
+        # Bloque: datos del conductor
+        datos.update(self._datos_conductor(vehiculo))
+
+        # Incorporar todas las variables de sistema
+        datos.update(datos_sistema)
+
+        # Aplicar campos editables (sobreescriben automáticos)
+        self._aplicar_editables(datos, datos_editables, hoy)
+
+        # Rellenar defaults desde configuración (para campos no presentes)
+        self._aplicar_defaults_config(datos, tipo, hoy)
+
+        # =================================================================
+        # PREPARACIÓN PARA FUTURAS AMPLIACIONES
+        # =================================================================
+        # Este método es el punto central de integración de datos para
+        # cualquier plantilla de documento.
+        #
+        # Actualmente combina los siguientes proveedores de datos:
+        #   - Vehículo          → _datos_vehiculo()
+        #   - Propietario       → _datos_propietario()
+        #   - Conductor         → _datos_conductor()
+        #   - Sistema           → _datos_sistema()
+        #   - Editables         → _aplicar_editables()
+        #   - Valores por defecto → _aplicar_defaults_config()
+        #
+        # Cada proveedor devuelve un diccionario independiente y se integra
+        # exclusivamente mediante datos.update(), manteniendo el principio
+        # de responsabilidad única (SRP).
+        #
+        # En futuros sprints se podrán añadir nuevos proveedores de datos,
+        # por ejemplo:
+        #   - _datos_accidente()
+        #   - _datos_tercero()
+        #   - _datos_lesionados()
+        #   - _datos_occisos()
+        #   - _datos_afectados()
+        #
+        # Cada nuevo proveedor deberá devolver un diccionario y su
+        # integración se realizará mediante datos.update(), sin modificar
+        # la estructura principal de este método.
+        # =================================================================
+
         return datos
+
+    # =================== GENERACIÓN Y REGISTRO ===================
 
     def generar_documento(
         self,

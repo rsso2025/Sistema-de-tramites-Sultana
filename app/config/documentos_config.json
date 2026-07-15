@@ -3,11 +3,11 @@
     "plantilla": "plantilla_certificacion_contrato.docx",
     "nombre_archivo": "certificacion",
     "campos_editables": [
-      ["Fecha inicio", "fecha_inicio", ""],
-      ["Fecha fin", "fecha_fin", ""],
-      ["Fecha firma", "fecha_firma", ""],
+      ["Fecha inicio", "fecha_inicio", "", "date"],
+      ["Fecha fin", "fecha_fin", "", "date"],
+      ["Fecha firma", "fecha_firma", "", "date"],
       ["Duración", "duracion", "1 año"],
-      ["Fecha emisión", "fecha_emision", ""],
+      ["Fecha emisión", "fecha_emision", "", "date"],
       ["Ciudad", "ciudad", "Sultana"]
     ]
   },
@@ -15,11 +15,10 @@
     "plantilla": "Informe_Accidente_Sencillo.docx",
     "nombre_archivo": "formato_accidente_interno",
     "campos_editables": [
-      ["Fecha del reporte", "fecha_reporte", ""],
-      ["Fecha del incidente", "fecha_incidente", ""],
+      ["Fecha del reporte", "fecha_reporte", "", "date"],
+      ["Fecha del incidente", "fecha_incidente", "", "date"],
       ["Hora del incidente", "hora_incidente", ""],
       ["Dirección del incidente", "direccion_incidente", ""],
-      ["Ruta", "ruta", ""],
       ["Motorista", "motorista", ""],
       ["Nombre de quien reporta", "nombre_reporta", ""],
       ["C.C. de quien reporta", "cc_reporta", ""],
@@ -35,9 +34,7 @@
   "Paz y Salvo": {
     "plantilla": "PAZ_Y_SALVO.docx",
     "nombre_archivo": "paz_y_salvo",
-    "campos_editables": [
-      ["Ciudad de expedición del propietario", "ciudad_expedicion", ""]
-    ]
+    "campos_editables": []
   },
   "Cesión de Derechos": {
     "plantilla": "CESION_DE_DERECHOS.docx",
@@ -45,8 +42,7 @@
     "campos_editables": [
       ["Nombre del cesionario", "nombre_cesionario", ""],
       ["Documento del cesionario", "documento_cesionario", ""],
-      ["Ciudad de expedición del cesionario", "ciudad_cesionario", ""],
-      ["Ciudad de expedición del propietario", "ciudad_expedicion", ""]
+      ["Ciudad de expedición del cesionario", "ciudad_cesionario", ""]
     ]
   },
   "Constancia de Ingresos": {
@@ -55,15 +51,14 @@
     "campos_editables": [
       ["Destinatario", "destinatario", "DIAN"],
       ["Ingreso en letras", "ingreso_letras", ""],
-      ["Ingreso en números", "ingreso_valor", ""],
-      ["Ciudad de expedición", "ciudad_expedicion", ""]
+      ["Ingreso en números", "ingreso_valor", ""]
     ]
   },
   "Desvinculación Administrativa": {
     "plantilla": "DESVINCULACION_ADMINISTRATIVA.docx",
     "nombre_archivo": "desvinculacion_administrativa",
     "campos_editables": [
-      ["Fecha de incumplimiento", "fecha_incumplimiento", ""],
+      ["Fecha de incumplimiento", "fecha_incumplimiento", "", "date"],
       ["Ciudad", "ciudad", "Santiago de Cali"]
     ]
   },
@@ -83,9 +78,9 @@
     "campos_editables": [
       ["Lugar del accidente", "lugar_accidente", ""],
       ["Ciudad del accidente", "ciudad_accidente", "Cali"],
-      ["Fecha del accidente", "fecha_accidente", ""],
+      ["Fecha del accidente", "fecha_accidente", "", "date"],
       ["Hora del accidente", "hora_accidente", ""],
-      ["Seguro todo riesgo", "seguro_todo_riesgo", "SI"],
+      ["Seguro todo riesgo", "seguro_todo_riesgo", ""],
       ["Informe de tránsito", "informe_transito", "NO"],
       ["Tipo de inmueble", "tipo_inmueble", ""],
       ["Nombre del tercero", "nombre_tercero", ""],
@@ -97,6 +92,76 @@
       ["Relato de los hechos", "relato_hechos", ""],
       ["Daños del vehículo", "danos_vehiculo", ""],
       ["Daños del tercero", "danos_tercero", ""]
+    ]
+  },
+  "Aviso de Siniestro Daños Vehículos": {
+    "plantilla": "AVISO DE SINIESTRO DAÑOS VEHICULOS.docx",
+    "nombre_archivo": "aviso_siniestro_danos_vehiculos",
+    "campos_editables": [
+      ["Fecha del siniestro", "fecha_accidente", "", "date"],
+      ["Hora del siniestro", "hora_accidente", ""],
+      ["Lugar del siniestro", "lugar_accidente", ""],
+      ["Ciudad del siniestro", "ciudad_accidente", ""],
+      ["Descripción de daños", "danos_vehiculo", ""],
+      ["Nombre del tercero", "nombre_tercero", ""],
+      ["Documento del tercero", "documento_tercero", ""],
+      ["Celular del tercero", "celular_tercero", ""],
+      ["Correo del tercero", "correo_tercero", ""],
+      ["Relato de los hechos", "relato_hechos", ""],
+      ["Seguro todo riesgo", "seguro_todo_riesgo", ""]
+    ]
+  },
+  "Aviso de Siniestro Lesiones": {
+    "plantilla": "AVISO DE SINIESTRO LESIONES.docx",
+    "nombre_archivo": "aviso_siniestro_lesiones",
+    "campos_editables": [
+      ["Fecha del siniestro", "fecha_accidente", "", "date"],
+      ["Hora del siniestro", "hora_accidente", ""],
+      ["Lugar del siniestro", "lugar_accidente", ""],
+      ["Ciudad del siniestro", "ciudad_accidente", ""],
+      ["Relato de los hechos", "relato_hechos", ""],
+      ["Nombre del lesionado", "lesionado1_nombre", ""],
+      ["Documento del lesionado", "lesionado1_documento", ""],
+      ["Celular del lesionado", "lesionado1_celular", ""],
+      ["Lesiones", "lesionado1_lesiones", ""],
+      ["Hospital", "lesionado1_hospital", ""]
+    ]
+  },
+  "Aviso de Siniestro por Muerte": {
+    "plantilla": "AVISO DE SINIESTRO POR MUERTE.docx",
+    "nombre_archivo": "aviso_siniestro_muerte",
+    "campos_editables": [
+      ["Fecha del siniestro", "fecha_accidente", "", "date"],
+      ["Hora del siniestro", "hora_accidente", ""],
+      ["Lugar del siniestro", "lugar_accidente", ""],
+      ["Ciudad del siniestro", "ciudad_accidente", ""],
+      ["Relato de los hechos", "relato_hechos", ""],
+      ["Nombre del occiso", "occiso_nombre", ""],
+      ["Documento del occiso", "occiso_documento", ""],
+      ["Celular del occiso", "occiso_celular", ""],
+      ["Dirección del occiso", "occiso_direccion", ""],
+      ["Ciudad del occiso", "occiso_ciudad", ""],
+      ["Correo del occiso", "occiso_correo", ""]
+    ]
+  },
+  "Contrato Urbano Candelaria": {
+    "plantilla": "CONTRATO URBANO CANDELARIA.docx",
+    "nombre_archivo": "contrato_urbano_candelaria",
+    "campos_editables": [
+      ["Fecha inicio", "fecha_inicio", "", "date"],
+      ["Fecha fin", "fecha_fin", "", "date"],
+      ["Duración", "duracion", ""],
+      ["Ciudad", "ciudad", "Santiago de Cali"]
+    ]
+  },
+  "Contrato Vinculación Radio Acción Nacional 2026": {
+    "plantilla": "CONTRATO VINCULACIÓN RADIO ACCION NACIONAL 2026.docx",
+    "nombre_archivo": "contrato_vinculacion_radio_accion_nacional_2026",
+    "campos_editables": [
+      ["Fecha inicio", "fecha_inicio", "", "date"],
+      ["Fecha fin", "fecha_fin", "", "date"],
+      ["Duración", "duracion", ""],
+      ["Ciudad", "ciudad", "Santiago de Cali"]
     ]
   }
 }

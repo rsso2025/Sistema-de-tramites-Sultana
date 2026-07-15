@@ -57,6 +57,7 @@ class VehiculoDTO:
     # Datos del propietario (se llenan en consultas JOIN)
     documento_propietario: Optional[str] = None
     nombre_propietario: Optional[str] = None
+    ciudad_expedicion: Optional[str] = None
     telefono_propietario: Optional[str] = None
     direccion_propietario: Optional[str] = None
 

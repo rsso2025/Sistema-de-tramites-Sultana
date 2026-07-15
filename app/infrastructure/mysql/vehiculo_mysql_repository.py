@@ -39,6 +39,7 @@ class VehiculoMySQLRepository:
 
                         p.nombre,
                         p.num_documento,
+                        cd.nombre AS ciudad_expedicion,
                         p.direccion,
                         p.telefono,
                         p.celular,
@@ -54,6 +55,9 @@ class VehiculoMySQLRepository:
 
                     LEFT JOIN propietario p
                         ON v.propietario_id = p.propietario_id
+
+                    LEFT JOIN ciudad cd
+                        ON p.lugar_docu = cd.ciudad_id
 
                     LEFT JOIN marca m
                         ON v.marca_id = m.marca_id
@@ -114,15 +118,16 @@ class VehiculoMySQLRepository:
                     "servicio": resultado[18],
                     "propietario": resultado[19],
                     "documento": resultado[20],
-                    "direccion": resultado[21],
-                    "telefono": resultado[22],
-                    "celular": resultado[23],
-                    "email": resultado[24],
-                    "nombre_conductor": resultado[25],
-                    "documento_conductor": resultado[26],
-                    "celular_conductor": resultado[27],
-                    "direccion_conductor": resultado[28],
-                    "correo_conductor": resultado[29]
+                    "ciudad_expedicion": resultado[21],
+                    "direccion": resultado[22],
+                    "telefono": resultado[23],
+                    "celular": resultado[24],
+                    "email": resultado[25],
+                    "nombre_conductor": resultado[26],
+                    "documento_conductor": resultado[27],
+                    "celular_conductor": resultado[28],
+                    "direccion_conductor": resultado[29],
+                    "correo_conductor": resultado[30]
                 }
 
         finally:
@@ -198,6 +203,7 @@ class VehiculoMySQLRepository:
 
                         p.nombre,
                         p.num_documento,
+                        cd.nombre AS ciudad_expedicion,
                         p.direccion,
                         p.telefono,
                         p.celular,
@@ -213,6 +219,9 @@ class VehiculoMySQLRepository:
 
                     LEFT JOIN propietario p
                         ON v.propietario_id = p.propietario_id
+
+                    LEFT JOIN ciudad cd
+                        ON p.lugar_docu = cd.ciudad_id
 
                     LEFT JOIN marca m
                         ON v.marca_id = m.marca_id
@@ -243,6 +252,13 @@ class VehiculoMySQLRepository:
 
                 resultado = cursor.fetchone()
 
+                # ===== LÍNEAS AGREGADAS TEMPORALMENTE =====
+                print("\nResultado obtenido:")
+                print(resultado)
+                if resultado:
+                    print("Ciudad expedición SQL:", resultado[21])
+                # ===========================================
+
                 if not resultado:
                     return None
 
@@ -268,15 +284,16 @@ class VehiculoMySQLRepository:
                     "servicio": resultado[18],
                     "propietario": resultado[19],
                     "documento": resultado[20],
-                    "direccion": resultado[21],
-                    "telefono": resultado[22],
-                    "celular": resultado[23],
-                    "email": resultado[24],
-                    "nombre_conductor": resultado[25],
-                    "documento_conductor": resultado[26],
-                    "celular_conductor": resultado[27],
-                    "direccion_conductor": resultado[28],
-                    "correo_conductor": resultado[29]
+                    "ciudad_expedicion": resultado[21],
+                    "direccion": resultado[22],
+                    "telefono": resultado[23],
+                    "celular": resultado[24],
+                    "email": resultado[25],
+                    "nombre_conductor": resultado[26],
+                    "documento_conductor": resultado[27],
+                    "celular_conductor": resultado[28],
+                    "direccion_conductor": resultado[29],
+                    "correo_conductor": resultado[30]
                 }
 
         finally:

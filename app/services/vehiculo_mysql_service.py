@@ -36,6 +36,7 @@ class VehiculoMySQLService:
 
             documento_propietario=str(datos["documento"]) if datos["documento"] else "",
             nombre_propietario=datos["propietario"] or "",
+            ciudad_expedicion=datos["ciudad_expedicion"] or "",
             telefono_propietario=datos["telefono"] or "",
             direccion_propietario=datos["direccion"] or "",
 

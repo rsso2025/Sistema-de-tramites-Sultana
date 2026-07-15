@@ -30,7 +30,7 @@ class DocumentosWindow:
         self.vehiculos_cache = []
         self.vehiculos_resultados_actuales = []
         self.vehiculo_data = None
-        self.entries_edit = {}
+        self.entries_edit = {}        # almacena (widget, tipo_control, opciones_extra)
         self.vehiculo_seleccionado = None
         self._busqueda_after_id = None
 
@@ -138,7 +138,7 @@ class DocumentosWindow:
             entry.configure(state="disabled")
             self.entries_auto[key] = entry
 
-        # Bloque campos editables dinámicos
+        # Bloque campos editables dinámicos (ahora preparado para múltiples tipos)
         self.frame_edit = ctk.CTkFrame(self.scroll_frame)
         self.frame_edit.pack(fill="x", padx=10, pady=10)
 
@@ -197,8 +197,140 @@ class DocumentosWindow:
         """Evento al cambiar el tipo de documento: regenera los campos editables."""
         self.actualizar_campos_editables()
 
+    # ========== FÁBRICA DE CONTROLES EDITABLES ==========
+    def _crear_widget_editable(self, parent, tipo_control: str, valor_defecto, opciones=None):
+        """
+        Fábrica de controles para campos editables.
+
+        Actualmente soporta:
+            - 'text'       → CTkEntry (campo de texto simple)
+            - 'textarea'   → CTkTextbox (área de texto multilínea)
+            - 'combo'      → CTkComboBox (selector desplegable)
+            - 'checkbox'   → CTkCheckBox (casilla de verificación)
+            - 'date'       → tkcalendar.DateEntry (selector de fecha) con fallback automático
+
+        En futuros sprints se podrán añadir nuevos tipos como:
+            - 'readonly'   → campo de solo lectura
+            - 'radio'      → grupo de botones de opción
+            - 'autocomplete' → entrada con autocompletado
+
+        La incorporación de un nuevo tipo solo requerirá extender este método
+        y actualizar _obtener_valor_widget(), sin afectar al resto de la ventana.
+        """
+        if tipo_control == "textarea":
+            # Altura ajustada a 120 para mejor experiencia en relatos extensos
+            widget = ctk.CTkTextbox(parent, width=250, height=120)
+            if valor_defecto:
+                widget.insert("0.0", valor_defecto)
+            return widget, tipo_control
+
+        elif tipo_control == "combo":
+            # ========== VALIDACIONES DEFENSIVAS ==========
+            # Estas validaciones garantizan robustez ante configuraciones incompletas
+            # o futuras ampliaciones del JSON sin comprometer la estabilidad.
+            if opciones is None:
+                opciones = [""]
+            elif not isinstance(opciones, list):
+                opciones = [""]
+            elif len(opciones) == 0:
+                opciones = [""]
+            # Si valor_defecto es None o no está en opciones, se usará el primer elemento
+            widget = ctk.CTkComboBox(parent, values=opciones, width=250)
+            if valor_defecto is not None and isinstance(valor_defecto, str) and valor_defecto in opciones:
+                widget.set(valor_defecto)
+            elif opciones:
+                widget.set(opciones[0])
+            return widget, tipo_control
+
+        elif tipo_control == "checkbox":
+            var = tk.IntVar(value=1 if valor_defecto and str(valor_defecto).lower() in ("1", "true", "si") else 0)
+            widget = ctk.CTkCheckBox(parent, text="", variable=var, width=250)
+            return widget, tipo_control
+
+        elif tipo_control == "date":
+            try:
+                from tkcalendar import DateEntry
+
+                # Contenedor puente (tk.Frame) para evitar problemas de anidación con CTk
+                contenedor = tk.Frame(parent)
+
+                # Crear DateEntry dentro del contenedor
+                date_widget = DateEntry(
+                    contenedor,
+                    date_pattern="dd/MM/yyyy",
+                    width=18
+                )
+                date_widget.pack(fill="x", expand=True)
+
+                # Valor por defecto (opcional)
+                if valor_defecto and isinstance(valor_defecto, str):
+                    try:
+                        dia, mes, anio = map(int, valor_defecto.split('/'))
+                        fecha_parse = datetime(anio, mes, dia)
+                        date_widget.set_date(fecha_parse)
+                    except Exception:
+                        pass  # Si falla, se queda con la fecha actual o vacía
+
+                return contenedor, "date"
+
+            except Exception as e:
+                import traceback
+                print("=" * 70)
+                print("ERROR CREANDO DATEENTRY")
+                print("Tipo:", type(e))
+                print("Mensaje:", e)
+                traceback.print_exc()
+                print("=" * 70)
+
+                # FALLBACK: si tkcalendar no está instalado o falla, usar CTkEntry
+                widget = ctk.CTkEntry(parent, width=250)
+                if valor_defecto:
+                    widget.insert(0, valor_defecto)
+                return widget, "date_fallback"
+
+        else:  # "text" o cualquier otro (por defecto CTkEntry)
+            widget = ctk.CTkEntry(parent, width=250)
+            if valor_defecto:
+                widget.insert(0, valor_defecto)
+            return widget, tipo_control
+
+    def _obtener_valor_widget(self, widget, tipo_control: str) -> str:
+        """
+        Obtiene el valor del widget según su tipo, garantizando siempre un str.
+        """
+        if tipo_control == "textarea":
+            valor = widget.get("0.0", "end").rstrip("\n")
+            return valor
+        elif tipo_control == "checkbox":
+            # Lectura robusta: widget.get() devuelve el valor de la variable asociada
+            # (IntVar o BooleanVar). Se considera truthy si está marcado.
+            return "SI" if widget.get() else "NO"
+        elif tipo_control == "combo":
+            return widget.get()
+        elif tipo_control == "date":
+            try:
+                # El widget es el contenedor tk.Frame, el DateEntry es su primer hijo
+                date_entry = widget.winfo_children()[0]
+                fecha = date_entry.get_date()
+                return fecha.strftime("%d/%m/%Y")
+            except Exception:
+                # Fallback: si falla, devolver el texto del widget o cadena vacía
+                try:
+                    return widget.winfo_children()[0].get()
+                except:
+                    return ""
+        elif tipo_control == "date_fallback":
+            return widget.get()
+        else:  # entry y otros
+            return widget.get()
+
+    # ========== ACTUALIZACIÓN DE CAMPOS EDITABLES ==========
     def actualizar_campos_editables(self):
-        """Limpia y vuelve a crear los campos editables según el tipo seleccionado."""
+        """
+        Limpia y vuelve a crear los campos editables según el tipo seleccionado.
+        Ahora soporta distintos tipos de controles definidos en la configuración.
+        """
+        # Limpiar frame (excepto el título)
         for widget in self.frame_edit.winfo_children():
             if widget != self.label_campos_editables:
                 widget.destroy()
@@ -210,21 +342,55 @@ class DocumentosWindow:
             return
 
         campos_edit = config.get("campos_editables", [])
-        for i, (label, key, valor_defecto) in enumerate(campos_edit, start=1):
+
+        # Procesar cada campo (tupla o diccionario)
+        for i, item in enumerate(campos_edit, start=1):
+            # Soporte para tuplas tradicionales (label, key, valor_defecto)
+            if isinstance(item, (list, tuple)):
+                if len(item) >= 4:
+                    label, key, valor_defecto, tipo_control = item[:4]
+                    opciones = item[4] if len(item) > 4 else None
+                else:
+                    label, key, valor_defecto = item[:3]
+                    tipo_control = "text"
+                    opciones = None
+            else:
+                # Soporte futuro para diccionarios con más metadatos
+                label = item.get("label", "")
+                key = item.get("key", "")
+                valor_defecto = item.get("valor_defecto", "")
+                tipo_control = item.get("tipo_control", "text")
+                opciones = item.get("opciones", None)
+
             fila = (i - 1) // 2 + 1
             col_base = ((i - 1) % 2) * 2
+
+            # Etiqueta
             ctk.CTkLabel(self.frame_edit, text=f"{label}:").grid(
                 row=fila, column=col_base, padx=10, pady=8, sticky="w"
             )
-            entry = ctk.CTkEntry(self.frame_edit, width=250)
-            entry.grid(row=fila, column=col_base + 1, padx=10, pady=8, sticky="w")
-            # Si es campo de fecha y no tiene valor por defecto, poner fecha actual
-            if "fecha" in key.lower() and not valor_defecto:
-                entry.insert(0, datetime.now().strftime("%d/%m/%Y"))
-            else:
-                entry.insert(0, valor_defecto if valor_defecto else "")
-            self.entries_edit[key] = entry
 
+            # Crear widget según tipo
+            widget, tipo_real = self._crear_widget_editable(
+                self.frame_edit,
+                tipo_control,
+                valor_defecto,
+                opciones
+            )
+
+            # Colocar en grilla (con expansión para textarea)
+            if tipo_control == "textarea":
+                widget.grid(row=fila, column=col_base + 1, padx=10, pady=8, sticky="nsew")
+                # Asegurar que la fila se expanda
+                self.frame_edit.grid_rowconfigure(fila, weight=1)
+                self.frame_edit.grid_columnconfigure(col_base + 1, weight=1)
+            else:
+                widget.grid(row=fila, column=col_base + 1, padx=10, pady=8, sticky="w")
+
+            # Almacenar widget y su tipo para posterior obtención de valor
+            self.entries_edit[key] = (widget, tipo_real)
+
+    # ========== MÉTODOS DE VEHÍCULO (SIN CAMBIOS) ==========
     def cargar_vehiculos(self):
         """Carga una sola vez los vehículos y prepara el filtro en memoria."""
         try:
@@ -279,7 +445,6 @@ class DocumentosWindow:
             )
 
     def on_busqueda_vehiculo_change(self, _event=None):
-        """Dispara un filtrado en memoria mientras el usuario escribe."""
         if self._busqueda_after_id is not None:
             self.window.after_cancel(self._busqueda_after_id)
         self._busqueda_after_id = self.window.after(120, self._aplicar_filtro_vehiculos)
@@ -290,7 +455,6 @@ class DocumentosWindow:
         self._actualizar_resultados_vehiculo(texto_busqueda)
 
     def _actualizar_resultados_vehiculo(self, texto_busqueda: str):
-        """Rellena la lista visible con los vehículos filtrados en memoria."""
         consulta = self._normalizar_texto(texto_busqueda)
         if consulta:
             resultados = [item for item in self.vehiculos_cache if consulta in item["busqueda"]]
@@ -320,7 +484,6 @@ class DocumentosWindow:
             )
 
     def on_vehiculo_select(self, _event=None):
-        """Sincroniza la selección visible con el vehículo activo."""
         seleccion = self.listbox_vehiculos.curselection()
         if not seleccion:
             self.vehiculo_seleccionado = None
@@ -337,14 +500,12 @@ class DocumentosWindow:
         self.cargar_datos_vehiculo()
 
     def _normalizar_texto(self, texto: str) -> str:
-        """Normaliza texto para búsquedas insensibles a mayúsculas y acentos."""
         texto = texto or ""
         texto = unicodedata.normalize("NFKD", texto)
         texto = "".join(caracter for caracter in texto if not unicodedata.combining(caracter))
         return texto.lower().strip()
 
     def cargar_datos_vehiculo(self):
-        """Carga los datos automáticos del vehículo seleccionado."""
         seleccion = self.vehiculo_seleccionado
         if not seleccion:
             messagebox.showwarning("Atención", "Seleccione un vehículo válido.")
@@ -359,7 +520,6 @@ class DocumentosWindow:
 
             self.vehiculo_data = vehiculo
 
-            # Rellenar campos automáticos
             self._set_entry_auto("nombre_propietario", vehiculo.nombre_propietario)
             self._set_entry_auto("documento_propietario", vehiculo.documento_propietario)
             self._set_entry_auto("placa", vehiculo.placa)
@@ -383,12 +543,27 @@ class DocumentosWindow:
         entry.insert(0, str(value) if value else "")
         entry.configure(state="disabled")
 
+    # ========== OBTENCIÓN DE DATOS EDITABLES (UNIVERSAL) ==========
     def obtener_datos_editables(self) -> dict:
-        """Recoge los valores actuales de los campos editables."""
-        return {key: entry.get() for key, entry in self.entries_edit.items()}
+        """
+        Recoge los valores actuales de los campos editables,
+        independientemente del tipo de control.
+        """
+        resultado = {}
+        for key, (widget, tipo_control) in self.entries_edit.items():
+            try:
+                valor = self._obtener_valor_widget(widget, tipo_control)
+                resultado[key] = valor
+            except Exception:
+                # Fallback: intentar get() genérico
+                try:
+                    resultado[key] = str(widget.get())
+                except:
+                    resultado[key] = ""
+        return resultado
 
+    # ========== GENERACIÓN DE DOCUMENTO (SIN CAMBIOS) ==========
     def generar_documento_final(self):
-        """Acción del botón Generar documento."""
         if not self.vehiculo_data:
             messagebox.showwarning("Atención", "Primero debe cargar un vehículo.")
             return
@@ -400,7 +575,6 @@ class DocumentosWindow:
 
         datos_editables = self.obtener_datos_editables()
 
-        # Nombre sugerido para el archivo
         config = self.documento_service.obtener_configuracion_documento(tipo)
         prefijo = config["nombre_archivo"]
         formato_salida = self.combo_formato_salida.get().strip()
