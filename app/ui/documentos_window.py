@@ -262,6 +262,14 @@ class DocumentosWindow:
                 )
                 date_widget.pack(fill="x", expand=True)
 
+                # =====================================================
+                # INFRAESTRUCTURA PARA CAMPOS CALCULADOS
+                # =====================================================
+                # Cuando se selecciona una fecha, se dispara la actualización
+                # de campos calculados (sin modificar comportamiento actual).
+                date_widget.bind("<<DateEntrySelected>>", lambda e: self._actualizar_campos_calculados())
+                # =====================================================
+
                 # Valor por defecto (opcional)
                 if valor_defecto and isinstance(valor_defecto, str):
                     try:
@@ -324,6 +332,92 @@ class DocumentosWindow:
         else:  # entry y otros
             return widget.get()
 
+    # ========== MÉTODOS AUXILIARES PARA ACCESO A WIDGETS EDITABLES ==========
+    def _obtener_widget_editable(self, clave):
+        """
+        Busca el widget editable y su tipo a partir de su clave lógica.
+
+        Args:
+            clave (str): Identificador lógico del campo (ej. 'fecha_inicio').
+
+        Returns:
+            tuple or None: (widget, tipo_control) si existe, None en caso contrario.
+        """
+        if clave in self.entries_edit:
+            return self.entries_edit[clave]
+        return None
+
+    def _asignar_valor_widget(self, clave, valor):
+        """
+        Asigna un valor a un widget editable según su tipo.
+
+        Args:
+            clave (str): Identificador lógico del campo.
+            valor (str): Valor a asignar (formato acorde al tipo de widget).
+        """
+        resultado = self._obtener_widget_editable(clave)
+        if resultado is None:
+            return
+
+        widget, tipo_control = resultado
+
+        try:
+            if tipo_control in ("text", "text", "date_fallback"):
+                # Para campos de texto normales y fallback de fecha
+                widget.delete(0, tk.END)
+                widget.insert(0, str(valor))
+
+            elif tipo_control == "textarea":
+                # Para áreas de texto
+                widget.delete("0.0", tk.END)
+                widget.insert("0.0", str(valor))
+
+            elif tipo_control == "combo":
+                # Para combos, se usa set() (valida que el valor exista en las opciones)
+                try:
+                    widget.set(str(valor))
+                except Exception:
+                    # Si el valor no está en la lista, se ignora (no se fuerza)
+                    pass
+
+            elif tipo_control == "checkbox":
+                # Para checkboxes, se usa IntVar
+                if str(valor).upper() in ("SI", "1", "TRUE"):
+                    widget.select()
+                else:
+                    widget.deselect()
+
+            elif tipo_control == "date":
+                # Para DateEntry, se usa set_date() con un objeto datetime
+                if valor and isinstance(valor, str) and len(valor) == 10 and valor[2] == '/' and valor[5] == '/':
+                    try:
+                        dia, mes, anio = map(int, valor.split('/'))
+                        fecha_parse = datetime(anio, mes, dia)
+                        # El widget es el contenedor tk.Frame, el DateEntry es su primer hijo
+                        date_entry = widget.winfo_children()[0]
+                        date_entry.set_date(fecha_parse)
+                    except Exception:
+                        # Si falla, no se hace nada
+                        pass
+
+            # Otros tipos de control se ignoran por ahora
+
+        except Exception:
+            # Fallback silencioso: si algo falla, no se interrumpe la ejecución
+            pass
+
+    # ========== INFRAESTRUCTURA PARA CAMPOS CALCULADOS ==========
+    def _actualizar_campos_calculados(self):
+        """
+        Infraestructura para futuros campos calculados.
+        Actualmente solo define la estructura para los contratos que lo requieran.
+        """
+        tipo = self.combo_tipo_documento.get().strip()
+        if tipo == "Contrato Urbano Candelaria":
+            pass
+        elif tipo == "Contrato Vinculación Radio Acción Nacional 2026":
+            pass
+
     # ========== ACTUALIZACIÓN DE CAMPOS EDITABLES ==========
     def actualizar_campos_editables(self):
         """
@@ -337,11 +431,17 @@ class DocumentosWindow:
         self.entries_edit.clear()
 
         tipo = self.combo_tipo_documento.get().strip()
+        print("\n" + "=" * 70)
+        print("DEBUG actualizar_campos_editables()")
+        print("Tipo seleccionado:", tipo)
         config = self.documento_service.obtener_configuracion_documento(tipo)
         if not config:
+            print("No se encontró configuración para el tipo seleccionado")
+            print("=" * 70 + "\n")
             return
 
         campos_edit = config.get("campos_editables", [])
+        print("Cantidad de campos encontrados:", len(campos_edit))
 
         # Procesar cada campo (tupla o diccionario)
         for i, item in enumerate(campos_edit, start=1):
@@ -361,6 +461,8 @@ class DocumentosWindow:
                 valor_defecto = item.get("valor_defecto", "")
                 tipo_control = item.get("tipo_control", "text")
                 opciones = item.get("opciones", None)
+
+            print("Creando:", key)
 
             fila = (i - 1) // 2 + 1
             col_base = ((i - 1) % 2) * 2
@@ -389,6 +491,8 @@ class DocumentosWindow:
 
             # Almacenar widget y su tipo para posterior obtención de valor
             self.entries_edit[key] = (widget, tipo_real)
+
+        print("=" * 70 + "\n")
 
     # ========== MÉTODOS DE VEHÍCULO (SIN CAMBIOS) ==========
     def cargar_vehiculos(self):
@@ -560,6 +664,15 @@ class DocumentosWindow:
                     resultado[key] = str(widget.get())
                 except:
                     resultado[key] = ""
+
+        print("\n" + "=" * 70)
+        print("DEBUG obtener_datos_editables()")
+        print(resultado)
+        print("Contiene fecha_reclamacion:", "fecha_reclamacion" in resultado)
+        if "fecha_reclamacion" in resultado:
+            print("Valor fecha_reclamacion:", resultado.get("fecha_reclamacion"))
+        print("=" * 70 + "\n")
+
         return resultado
 
     # ========== GENERACIÓN DE DOCUMENTO (SIN CAMBIOS) ==========
@@ -598,6 +711,16 @@ class DocumentosWindow:
                 text_color="orange",
             )
             return
+
+        print("\n" + "=" * 70)
+        print("DEBUG antes de DocumentService.generar_documento()")
+        print("Tipo:", tipo)
+        print("datos_editables:")
+        print(datos_editables)
+        print("Contiene fecha_reclamacion:", "fecha_reclamacion" in datos_editables)
+        if "fecha_reclamacion" in datos_editables:
+            print("Valor fecha_reclamacion:", datos_editables.get("fecha_reclamacion"))
+        print("=" * 70 + "\n")
 
         exito, mensaje = self.documento_service.generar_documento(
             tipo=tipo,

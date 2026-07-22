@@ -19,7 +19,7 @@ class VehiculoMySQLService:
             marca=datos["marca"] or "",
             modelo=str(datos["modelo"]) if datos["modelo"] else "",
             clase=datos["clase"] or "",
-            fecha_afiliacion=datos["fecha_matricula"] or "",
+            fecha_afiliacion=datos["fecha_afiliacion"] or "",
             motor=datos["motor"] or "",
             chasis=datos["chasis"] or "",
             serie=datos["serie"] or "",

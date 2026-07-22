@@ -16,6 +16,7 @@ from docx2pdf import convert
 from app.core.entities import DocumentoGeneradoDTO, VehiculoDTO
 from app.infrastructure.repositories.documento_repository import DocumentoRepository
 from app.infrastructure.repositories.vehiculo_repository import VehiculoRepository
+from app.utils.path_manager import PathManager
 
 
 def _reemplazar_texto_en_parrafo(parrafo, datos: Dict[str, str]) -> None:
@@ -406,9 +407,24 @@ class DocumentoService:
 
     def _cargar_configuracion(self) -> dict:
         """Carga la configuración de tipos de documentos desde el JSON."""
-        ruta_config = Path(__file__).resolve().parent.parent / "config" / "documentos_config.json"
+        ruta_config = PathManager.get_documents_config_path()
+        print("\n" + "=" * 70)
+        print("DEBUG _cargar_configuracion()")
+        print("Ruta absoluta JSON:", ruta_config.resolve())
         with open(ruta_config, "r", encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
+
+        print("Tipos de documento cargados:")
+        for tipo_documento in config.keys():
+            print("-", tipo_documento)
+
+        tipo_objetivo = "Informe Accidente Daños Materiales"
+        campos_objetivo = config.get(tipo_objetivo, {}).get("campos_editables", [])
+        print(f"Campos editables de '{tipo_objetivo}':")
+        print(campos_objetivo)
+        print("=" * 70 + "\n")
+
+        return config
 
     def obtener_tipos_documento(self) -> List[str]:
         """Devuelve la lista de tipos de documento disponibles."""
@@ -428,8 +444,13 @@ class DocumentoService:
 
     def _obtener_fecha_actual(self) -> Tuple[str, str]:
         """Devuelve la fecha actual en formato corto y largo."""
-        hoy = datetime.now().strftime("%d/%m/%Y")
-        fecha_larga = datetime.now().strftime("%d de %B de %Y")
+        ahora = datetime.now()
+        meses_es = [
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+        ]
+        hoy = ahora.strftime("%d/%m/%Y")
+        fecha_larga = f"{ahora.strftime('%d')} de {meses_es[ahora.month - 1]} de {ahora.strftime('%Y')}"
         return hoy, fecha_larga
 
     def _datos_sistema(self) -> Dict[str, str]:
@@ -447,12 +468,16 @@ class DocumentoService:
         en el futuro con nuevas variables (ej. hora, minuto, etc.) sin afectar al resto.
         """
         ahora = datetime.now()
+        meses_es = [
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+        ]
         return {
             "dia": ahora.strftime("%d"),
-            "mes": ahora.strftime("%B"),
+            "mes": meses_es[ahora.month - 1],
             "anio": ahora.strftime("%Y"),
             "fecha_corta": ahora.strftime("%d/%m/%Y"),
-            "fecha_larga": ahora.strftime("%d de %B de %Y"),
+            "fecha_larga": f"{ahora.strftime('%d')} de {meses_es[ahora.month - 1]} de {ahora.strftime('%Y')}",
         }
 
     def _datos_vehiculo(self, vehiculo: VehiculoDTO) -> Dict[str, str]:
@@ -521,12 +546,36 @@ class DocumentoService:
         para el tipo de documento.
         """
         config = self.config.get(tipo, {})
-        for label, clave, valor_defecto in config.get("campos_editables", []):
+        for item in config.get("campos_editables", []):
+            if len(item) < 3:
+                continue
+            label = item[0]          # Etiqueta visible (no se usa en lógica)
+            clave = item[1]          # Nombre de la variable
+            valor_defecto = item[2]  # Valor por defecto
             if clave not in datos:
                 if "fecha" in clave.lower() and not valor_defecto:
                     datos[clave] = hoy
                 else:
                     datos[clave] = valor_defecto if valor_defecto else ""
+
+    def _formatear_fecha_larga(self, fecha: str) -> str:
+        """
+        Convierte una fecha en formato DD/MM/AAAA a formato largo en español:
+        "15 de julio de 2026"
+
+        Si la fecha no es válida o no tiene el formato esperado, devuelve el valor original.
+        """
+        meses = [
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+        ]
+        try:
+            dia, mes, anio = map(int, fecha.split('/'))
+            if 1 <= dia <= 31 and 1 <= mes <= 12 and 1000 <= anio <= 9999:
+                return f"{dia} de {meses[mes-1]} de {anio}"
+        except Exception:
+            pass
+        return fecha
 
     # =================== MÉTODO PRINCIPAL REFACTORIZADO ===================
 
@@ -537,6 +586,13 @@ class DocumentoService:
         Combina los datos automáticos del vehículo con los campos editables
         y prepara el diccionario final para la plantilla.
         """
+        print("\n" + "=" * 70)
+        print("DEBUG preparar_datos_plantilla() - diccionario recibido")
+        print("Tipo documento:", tipo)
+        print(datos_editables)
+        print("Contiene fecha_reclamacion:", "fecha_reclamacion" in datos_editables)
+        print("=" * 70)
+
         # Obtener variables del sistema (dia, mes, anio, fecha_corta, fecha_larga)
         datos_sistema = self._datos_sistema()
         hoy = datos_sistema["fecha_corta"]
@@ -560,6 +616,35 @@ class DocumentoService:
 
         # Rellenar defaults desde configuración (para campos no presentes)
         self._aplicar_defaults_config(datos, tipo, hoy)
+
+        # Convertir fechas en formato DD/MM/AAAA a formato largo (día de mes de año)
+        for clave, valor in datos.items():
+            # Evitar convertir variables del sistema que ya tienen formato largo o que deben mantenerse
+            if clave in ("fecha_corta", "fecha_larga"):
+                continue
+            if "fecha" in clave.lower() and isinstance(valor, str) and len(valor) == 10:
+                if valor[2] == '/' and valor[5] == '/':
+                    datos[clave] = self._formatear_fecha_larga(valor)
+
+        # ==========================================================
+        # AUDITORÍA TEMPORAL – VALORES FINALES DE FECHAS
+        # ==========================================================
+        print("\n" + "=" * 70)
+        print("AUDITORÍA FINAL DE DATOS ENVIADOS A LA PLANTILLA")
+        print("=" * 70)
+        for clave in sorted(datos.keys()):
+            if "fecha" in clave.lower():
+                print(f"{clave:25} -> {datos[clave]}")
+        print("=" * 70 + "\n")
+        # ==========================================================
+
+        print("\n" + "=" * 70)
+        print("DEBUG preparar_datos_plantilla() - diccionario final")
+        print(datos)
+        print("Contiene fecha_reclamacion:", "fecha_reclamacion" in datos)
+        if "fecha_reclamacion" in datos:
+            print("Valor fecha_reclamacion:", datos.get("fecha_reclamacion"))
+        print("=" * 70 + "\n")
 
         # =================================================================
         # PREPARACIÓN PARA FUTURAS AMPLIACIONES
@@ -620,8 +705,7 @@ class DocumentoService:
         datos = self.preparar_datos_plantilla(vehiculo, datos_editables, tipo)
 
         # Ruta de la plantilla
-        base_dir = Path(__file__).resolve().parent.parent
-        ruta_plantilla = base_dir / "assets" / "templates" / config["plantilla"]
+        ruta_plantilla = PathManager.get_templates_dir() / config["plantilla"]
 
         try:
             salida_path = Path(ruta_salida)

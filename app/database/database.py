@@ -1,11 +1,8 @@
 import sqlite3
-from pathlib import Path
 
-# Ruta base del proyecto
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+from app.utils.path_manager import PathManager
 
-# Ruta del archivo de base de datos
-DB_PATH = BASE_DIR / "app" / "database" / "sistema_tramites.db"
+DB_PATH = PathManager.get_sqlite_path()
 
 
 def get_connection():

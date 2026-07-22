@@ -1,11 +1,11 @@
 import os
-from pathlib import Path
 
 import pymysql
 
 from dotenv import load_dotenv
+from app.utils.path_manager import PathManager
 
-RUTA_ENV = Path(__file__).resolve().parents[3] / ".env"
+RUTA_ENV = PathManager.get_env_path()
 load_dotenv(RUTA_ENV)
 
 
